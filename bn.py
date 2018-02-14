@@ -7,15 +7,20 @@ Thanks to: https://twitter.com/jeremyphoward/status/938882675175186432?lang=en-g
 import torch
 import torch.nn as nn
 
+'''
+Batchnorm as a module - autograd takes care of gamma/beta
+Unsure how to add ISTA penalty to gamma update
+'''
 class BatchNorm2d(nn.Module):
-    def __init__(self, size, stride=2):
+    def __init__(self, size, ista, stride=2):
         super().__init__()
         self.beta  = nn.Parameter(torch.zeros(size, 1, 1))
         self.gamma = nn.Parameter(torch.ones(size, 1, 1))
-        self.ista  = ista # ista regularisation 
+        self.ista  = ista # ista regularisation
 
     def forward(self, x):
         x_norm = x.transpose(0,1).contiguous().view(x.size(1), -1)
+
         if self.training:
             self.means = x_norm.mean(1)[:,None,None]
             self.stds  = x_norm.std (1)[:,None,None]
@@ -25,4 +30,36 @@ class BatchNorm2d(nn.Module):
 
         return self.gamma * x + self.beta
 
-    def backward()
+
+class BatchNormF(torch.autograd.Function):
+    # why no __init__?
+    def __init__(self, size, ista, stride=2):
+        # super().__init__()
+        self.beta  = nn.Parameter(torch.zeros(size, 1, 1))
+        self.gamma = nn.Parameter(torch.ones(size, 1, 1))
+        self.ista  = ista # ista regularisation
+
+    @staticmethod
+    def forward(ctx, input, weight, bias=None):
+        x_norm = x.transpose(0,1).contiguous().view(x.size(1), -1)
+
+        if self.training:
+            self.means = x_norm.mean(1)[:,None,None]
+            self.stds  = x_norm.std (1)[:,None,None]
+
+        x = x - self.means
+        x = x / self.stds
+
+        ctx.save_for_backward(x, x_norm)
+
+        return self.gamma * x + self.beta
+
+    @staticmethod
+    def backward(ctx, grad_output):
+
+        x, x_norm = ctx.saved_variables
+
+        
+        grad_input = grad_weight = grad_bias = None
+
+        return grad_input, grad_weight, grad_bias
