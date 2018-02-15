@@ -180,7 +180,7 @@ def load_best(model_name, model_wts):
     return model_name, model_wts, best_acc
 
 # Training
-def train(model, epoch, optimizer, trainloader):
+def train(model, epoch, optimizer, bn_optimizer, trainloader):
     #model_name, model = model[0], model[1]
     use_cuda = torch.cuda.is_available()
 
@@ -201,12 +201,16 @@ def train(model, epoch, optimizer, trainloader):
             inputs, targets = inputs.cuda(), targets.cuda()
 
         optimizer.zero_grad()
+        bn_optimizer.zero_grad()
 
         inputs, targets = Variable(inputs), Variable(targets)
         outputs = model(inputs)
+
         loss = criterion(outputs, targets)
         loss.backward()
+
         optimizer.step()
+        bn_optimizer.step()
 
         train_loss += loss.data[0]
         _, predicted = torch.max(outputs.data, 1)

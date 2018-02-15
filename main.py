@@ -16,14 +16,15 @@ import argparse
 from utils import progress_bar, load_best, get_data, train, test, sparsify, count_params
 from torch.autograd import Variable
 
-from bn import *
+
+import sgd as bnopt
 
 class LeNet(nn.Module):
     def __init__(self):
         super(LeNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.conv2 = nn.Conv2d(6, 16, 5)
-        self.bn2   = BatchNorm2d(16)
+        self.bn2   = nn.BatchNorm2d(16)
         self.fc1   = nn.Linear(16*5*5, 120)
         self.fc2   = nn.Linear(120, 84)
         self.fc3   = nn.Linear(84, 10)
@@ -48,9 +49,10 @@ def train_models(model_name, model_weights, num_epochs):
     learning_rate = 0.1
 
     for epoch in range(1,num_epochs):
-        optimizer = optim.SGD(model_weights.parameters(), lr=learning_rate, momentum=0.9, weight_decay=5e-4)
+        optimizer    = optim.SGD(model_weights.parameters(), lr=learning_rate, momentum=0.9, weight_decay=5e-4)
+        bn_optimizer = bnopt.BatchNormSGD([model_weights.bn2.weight], lr=learning_rate, ista=[1], momentum=0.9)
 
-        train(model_weights, epoch, optimizer, train_loader)
+        train(model_weights, epoch, optimizer, bn_optimizer, train_loader)
         best_acc = test(model_name, model_weights, test_loader, best_acc)
 
     return best_acc
