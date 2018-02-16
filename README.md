@@ -1,7 +1,7 @@
 Work in progress PyTorch implementation of [this paper](https://arxiv.org/abs/1802.00124).  
 
 ISTA pruning process:
-- [ ] compute ista penalties for each layer
+- [x] compute ista penalties for each layer
 - [ ] scale weights of batchnorm layers
 - [x] end to end training - implement SGD, batchnorm layer
 - [ ] mask channels

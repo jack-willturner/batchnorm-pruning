@@ -73,6 +73,13 @@ def compute_penalties(model, image_dim=28, rho=0.000001):
 
     return penalties
 
+
+
+def scale_down_gammas(alpha, layers):
+    for layer in layers:
+        layer.weight = alpha * layer.weight
+
+
 def train_models(model_name, model_weights, num_epochs):
 
     best_acc = 0.
