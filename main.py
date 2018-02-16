@@ -1,4 +1,4 @@
-'''Train CIFAR10 with PyTorch.'''
+''' https://arxiv.org/pdf/1802.00124v1.pdf '''
 from __future__ import print_function
 
 import torch
@@ -18,7 +18,6 @@ from torch.autograd import Variable
 
 import sgd as bnopt
 
-image_dim = 28 # size of input image - use this to calculate memory footprint in compute_penalties
 
 class LeNet(nn.Module):
     def __init__(self):
@@ -44,38 +43,48 @@ class LeNet(nn.Module):
 train_loader, test_loader = get_data()
 
 
-
 '''
 Equation (2) on page 6
 '''
-def compute_penalties(model):
+def compute_penalties(model, image_dim=28, rho=0.000001):
     penalties = []
 
     # only considering conv layers with batchnorm
-    layers = filter(lambda l : isinstance(l, nn.Conv2d), ls)
+    layers = list(filter(lambda l : isinstance(l, nn.Conv2d), list(model.children())))
 
     # zip xs ([tail xs]) - need to know kernel size of follow-up layer
-    for i in range(len(layers))
+    for i in range(len(layers)):
         l    = layers[i]
         tail = layers[i+1:]
 
         i_w, i_h = image_dim, image_dim
-        k_w, k_h = l1.kernel_size, l1.kernel_size
-        c_prev   = l1.in_channels
-        c_next   = l1.out_channels
+        k_w, k_h = l.kernel_size[0], l.kernel_size[1]
+        c_prev   = l.in_channels
+        c_next   = l.out_channels
 
-        ista     = (1 / i_w * i_h) * (k_w * k_h * c_prev + reduce(lambda l: image_size = ((image_size - k_w + 2*l1.padding / l1.stride) + 1 ) l.kernel_size * l.kernel_size * l.in_channels + (), tail))
+        follow_up_cost = 0.
+        for follow_up_conv in tail:
+            image_dim       = ((image_dim - k_w + 2*l.padding[0]) / l.stride[0]) + 1
+            follow_up_cost += follow_up_conv.kernel_size[0] * follow_up_conv.kernel_size[1] * follow_up_conv.in_channels + image_dim**2
 
+        ista     = rho * ((1 / i_w * i_h) * (k_w * k_h * c_prev + follow_up_cost))
 
-# assume training always done on GPU - so we don't check for CPU conversions here
+        penalties.append(ista)
+
+    return penalties
+
 def train_models(model_name, model_weights, num_epochs):
 
     best_acc = 0.
     learning_rate = 0.1
 
+    ista_penalties = compute_penalties(model_weights)
+    print(ista_penalties)
+
+    optimizer    = optim.SGD(model_weights.parameters(), lr=learning_rate, momentum=0.9, weight_decay=5e-4)
+    bn_optimizer = bnopt.BatchNormSGD([model_weights.bn2.weight], lr=learning_rate, ista=ista_penalties, momentum=0.9)
+
     for epoch in range(1,num_epochs):
-        optimizer    = optim.SGD(model_weights.parameters(), lr=learning_rate, momentum=0.9, weight_decay=5e-4)
-        bn_optimizer = bnopt.BatchNormSGD([model_weights.bn2.weight], lr=learning_rate, ista=[1], momentum=0.9)
 
         train(model_weights, epoch, optimizer, bn_optimizer, train_loader)
         best_acc = test(model_name, model_weights, test_loader, best_acc)
@@ -84,21 +93,4 @@ def train_models(model_name, model_weights, num_epochs):
 
 
 model = LeNet()
-
-layers = list(model.children())
-
-
-# zip xs (tail xs) - need to know kernel size of follow-up layer
-for i in range(len(layers)):
-    l1 = layers[i]
-    l2 = layers[(i+1):]
-    print(l1, l2)
-    print("\n")
-
-
-# count batch norm layers
-# filter out batch norm layers
-# create list of tuples saying whether conv has follow up batch norm
-
-
-#train_models(model_name="LeNet",model_weights=model,num_epochs=2)
+train_models(model_name="LeNet",model_weights=model,num_epochs=2)
