@@ -16,8 +16,9 @@ import argparse
 from utils import progress_bar, load_best, get_data, train, test, sparsify, count_params
 from torch.autograd import Variable
 
-
 import sgd as bnopt
+
+image_dim = 28 # size of input image - use this to calculate memory footprint in compute_penalties
 
 class LeNet(nn.Module):
     def __init__(self):
@@ -42,6 +43,30 @@ class LeNet(nn.Module):
 
 train_loader, test_loader = get_data()
 
+
+
+'''
+Equation (2) on page 6
+'''
+def compute_penalties(model):
+    penalties = []
+
+    # only considering conv layers with batchnorm
+    layers = filter(lambda l : isinstance(l, nn.Conv2d), ls)
+
+    # zip xs ([tail xs]) - need to know kernel size of follow-up layer
+    for i in range(len(layers))
+        l    = layers[i]
+        tail = layers[i+1:]
+
+        i_w, i_h = image_dim, image_dim
+        k_w, k_h = l1.kernel_size, l1.kernel_size
+        c_prev   = l1.in_channels
+        c_next   = l1.out_channels
+
+        ista     = (1 / i_w * i_h) * (k_w * k_h * c_prev + reduce(lambda l: image_size = ((image_size - k_w + 2*l1.padding / l1.stride) + 1 ) l.kernel_size * l.kernel_size * l.in_channels + (), tail))
+
+
 # assume training always done on GPU - so we don't check for CPU conversions here
 def train_models(model_name, model_weights, num_epochs):
 
@@ -60,4 +85,20 @@ def train_models(model_name, model_weights, num_epochs):
 
 model = LeNet()
 
-train_models(model_name="LeNet",model_weights=model,num_epochs=2)
+layers = list(model.children())
+
+
+# zip xs (tail xs) - need to know kernel size of follow-up layer
+for i in range(len(layers)):
+    l1 = layers[i]
+    l2 = layers[(i+1):]
+    print(l1, l2)
+    print("\n")
+
+
+# count batch norm layers
+# filter out batch norm layers
+# create list of tuples saying whether conv has follow up batch norm
+
+
+#train_models(model_name="LeNet",model_weights=model,num_epochs=2)
