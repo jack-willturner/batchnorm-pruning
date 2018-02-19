@@ -13,7 +13,7 @@ import torchvision.transforms as transforms
 import os
 import argparse
 
-from utils import progress_bar, load_best, get_data, train, test, sparsify, count_params
+from utils import progress_bar, load_best, get_data, train, test, sparsify, count_sparse_bn
 from torch.autograd import Variable
 
 import MaskLayer
@@ -29,10 +29,8 @@ class LeNet(nn.Module):
         self.alpha = alpha
         self.prune = False # change this to true when you want to remove channels
         self.conv1 = nn.Conv2d(3, 6, 5)
-        #self.mask1 = MaskLayer(3, 6)
         self.bn1   = BatchNorm2dEx(6)
         self.conv2 = nn.Conv2d(6, 16, 5)
-        #self.mask2 = MaskLayer(6, 16)
         self.bn2   = BatchNorm2dEx(16)
         self.fc1   = nn.Linear(16*5*5, 120)
         self.fc2   = nn.Linear(120, 84)
@@ -99,7 +97,7 @@ def scale_gammas(alpha, model, scale_down=True):
         alpha   = 1 / alpha
 
     for l1, l2 in zip(layers,layers[1:]):
-        if(isinstance(l1, nn.BatchNorm2d) and isinstance(l2, nn.Conv2d)):
+        if(isinstance(l1, BatchNorm2dEx) and isinstance(l2, nn.Conv2d)):
             l1.weight.data = l1.weight.data * alpha
             l2.weight.data = l2.weight.data * alpha_
 
@@ -120,7 +118,7 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
     bn_optimizer = bnopt.BatchNormSGD([model_weights.bn1.weight, model_weights.bn2.weight], lr=learning_rate, ista=ista_penalties, momentum=0.9)
 
     for epoch in range(1,num_epochs):
-
+        print(count_sparse_bn(model_weights))
         train(model_weights, epoch, optimizer, bn_optimizer, train_loader)
         best_acc = test(model_name, model_weights, test_loader, best_acc)
 
@@ -135,30 +133,31 @@ def main():
     # get the model
     model = LeNet()
 
+    alpha = 0.01
+    rho   = 0.002
+
     # step one: compute ista penalties
-    ista_penalties = compute_penalties(model)
+    ista_penalties = compute_penalties(model, rho)
 
     # step two: gamma rescaling trick
-    scale_gammas(alpha=0.001, model=model, scale_down=True)
+    scale_gammas(alpha, model=model, scale_down=True)
 
     # step three: end-to-end-training
-    train_model(model_name="LeNet", model_weights=model, ista_penalties=ista_penalties, num_epochs=2)
-
-    print(count_params(model))
+    train_model(model_name="LeNet", model_weights=model, ista_penalties=ista_penalties, num_epochs=1000)
 
     # step four: remove constant channels by switching bn to "follow" mode
     switch_to_follow(model)
 
     # step five: gamma rescaling trick
-    scale_gammas(alpha=0.001, model=model, scale_down=False)
+    scale_gammas(alpha, model=model, scale_down=False)
 
     # step six: finetune
-    num_retraining_epochs=30
+    num_retraining_epochs=100
     best_acc = 0.
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
     for epoch in range(1, num_retraining_epochs):
         train(model, epoch, optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
         best_acc = test("LeNet", model, test_loader, best_acc)
-        print(count_params(model))
+        print(count_sparse_bn(model))
 
 main()

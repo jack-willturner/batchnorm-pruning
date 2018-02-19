@@ -1,4 +1,4 @@
-# Rethinking the smaller-norm-less-informative assumption in channel pruning of convolution layers
+# [Rethinking the Smaller-Norm-Less-Informative Assumption in Channel Pruning of Convolution Layers](https://arxiv.org/abs/1802.00124).
 Work in progress PyTorch implementation of [this paper](https://arxiv.org/abs/1802.00124).  
 
 ## Usage

@@ -14,6 +14,8 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 
+from bn import BatchNorm2dEx
+
 import torchvision
 import torchvision.transforms as transforms
 
@@ -255,6 +257,7 @@ def test(model_name, model, testloader, best_acc):
     if acc > best_acc:
         print('Saving..')
         save_state(model_name, model, acc)
+        best_acc = acc
     return best_acc
 
 # deep compression
@@ -265,6 +268,13 @@ def count_params(model):
         flat = param.view(param.size(0), -1)
         flat = flat.data.cpu().numpy()
         total = total + np.count_nonzero(flat)
+    return total
+
+def count_sparse_bn(model):
+    total = 0
+    for param in model.children():
+        if isinstance(param, BatchNorm2dEx):
+            total += np.count_nonzero(param.weight.data.numpy())
     return total
 
 import numpy as np
