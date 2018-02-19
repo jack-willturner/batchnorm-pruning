@@ -20,23 +20,34 @@ import MaskLayer
 
 import sgd as bnopt
 
+from bn import BatchNorm2dEx
+
 
 class LeNet(nn.Module):
     def __init__(self):
         super(LeNet, self).__init__()
+        self.prune = False # change this to true when you want to remove channels
         self.conv1 = nn.Conv2d(3, 6, 5)
-        self.mask1 = MaskLayer(3, 6)
+        #self.mask1 = MaskLayer(3, 6)
+        self.bn1   = BatchNorm2dEx(6)
         self.conv2 = nn.Conv2d(6, 16, 5)
-        self.mask2 = MaskLayer(6, 16)
-        self.bn2   = nn.BatchNorm2d(16)
+        #self.mask2 = MaskLayer(6, 16)
+        self.bn2   = BatchNorm2dEx(16)
         self.fc1   = nn.Linear(16*5*5, 120)
         self.fc2   = nn.Linear(120, 84)
         self.fc3   = nn.Linear(84, 10)
 
     def forward(self, x):
-        out = F.relu(self.conv1(x))
+        '''
+        if prune:
+            x = F.relu(self.bn1(self.mask1(x)))
+        else:
+            x = F.relu(self.bn1(self.conv1(x)))
+        '''
+
+        out = F.relu(self.bn1(self.conv1(x), self.conv1.weight))
         out = F.max_pool2d(out, 2)
-        out = F.relu(self.bn2(self.conv2(out)))
+        out = F.relu(self.bn2(self.conv2(out), self.conv2.weight))
         out = F.max_pool2d(out, 2)
         out = out.view(out.size(0), -1)
         out = F.relu(self.fc1(out))
@@ -52,7 +63,6 @@ Equation (2) on page 6
 '''
 def compute_penalties(model, image_dim=28, rho=0.000001):
     penalties = []
-
     # only considering conv layers with batchnorm
     layers = list(filter(lambda l : isinstance(l, nn.Conv2d), list(model.children())))
 
@@ -84,18 +94,18 @@ def scale_down_gammas(alpha, model):
 
     for l1, l2 in zip(layers,layers[1:]):
         if(isinstance(l1, nn.BatchNorm2d) and isinstance(l2, nn.Conv2d)):
-            l1.weight = alpha * l1.weight
-            l2.weight = (1/alpha) * l2.weight
+            l1.reduce_gammas()
+            l2.weight.data = (1/alpha) * l2.weight.data
 
     return model
 
-def train_models(model_name, model_weights, ista_penalties, num_epochs):
+def train_model(model_name, model_weights, ista_penalties, num_epochs):
 
     best_acc = 0.
     learning_rate = 0.1
 
     optimizer    = optim.SGD(model_weights.parameters(), lr=learning_rate, momentum=0.9, weight_decay=5e-4)
-    bn_optimizer = bnopt.BatchNormSGD([model_weights.bn2.weight], lr=learning_rate, ista=ista_penalties, momentum=0.9)
+    bn_optimizer = bnopt.BatchNormSGD([model_weights.bn1.weight, model_weights.bn2.weight], lr=learning_rate, ista=ista_penalties, momentum=0.9)
 
     for epoch in range(1,num_epochs):
 
@@ -117,7 +127,7 @@ def main():
     ista_penalties = compute_penalties(model)
 
     # step two: gamma rescaling trick
-    model = scale_down_gammas(alpha=0.001, model)
+    model = scale_down_gammas(alpha=0.001, model=model)
 
     # step three: end-to-end-training
     train_model(model_name="LeNet", model_weights=model, ista_penalties=ista_penalties, num_epochs=2)
@@ -129,3 +139,6 @@ def main():
 
 
     # step six: finetune
+
+
+main()

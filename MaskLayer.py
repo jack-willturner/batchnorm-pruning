@@ -3,6 +3,7 @@ import torch.nn as nn
 
 '''
 Placed after conv layers to zero out channels.
+Elliot's code
 '''
 class MaskLayer(nn.Module):
     def __init__(self, in_planes, out_planes):
