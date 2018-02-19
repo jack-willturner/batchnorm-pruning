@@ -54,7 +54,7 @@ class BatchNorm2dEx(nn.BatchNorm2d):
         self.alpha = None
         if alpha:
             self.alpha = nn.Parameter(torch.ones (size, 1, 1) * alpha)
-            self.alpha.requires_grad = False
+            #self.alpha.requires_grad = False <== be super careful of this
 
         self.follow = follow # used to decide on avg update strategy
 
@@ -68,7 +68,5 @@ class BatchNorm2dEx(nn.BatchNorm2d):
 
         return out
 
-    def reduce_gammas(self):
-        if self.alpha:
-            print("scaling gammas")
-            self.weight * self.alpha
+    def reduce_gammas(self, alpha):
+        self.weight.data = self.weight.data * alpha

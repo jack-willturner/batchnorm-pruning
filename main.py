@@ -24,8 +24,9 @@ from bn import BatchNorm2dEx
 
 
 class LeNet(nn.Module):
-    def __init__(self):
+    def __init__(self, alpha=0.001):
         super(LeNet, self).__init__()
+        self.alpha = alpha
         self.prune = False # change this to true when you want to remove channels
         self.conv1 = nn.Conv2d(3, 6, 5)
         #self.mask1 = MaskLayer(3, 6)
@@ -87,14 +88,13 @@ def compute_penalties(model, image_dim=28, rho=0.000001):
 
     return penalties
 
-
 def scale_down_gammas(alpha, model):
     # get pairs of consecutive layers
     layers = list(model.children())
 
     for l1, l2 in zip(layers,layers[1:]):
         if(isinstance(l1, nn.BatchNorm2d) and isinstance(l2, nn.Conv2d)):
-            l1.reduce_gammas()
+            l1.reduce_gammas(alpha)
             l2.weight.data = (1/alpha) * l2.weight.data
 
     return model
