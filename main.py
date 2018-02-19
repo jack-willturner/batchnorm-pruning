@@ -45,7 +45,6 @@ class LeNet(nn.Module):
         else:
             x = F.relu(self.bn1(self.conv1(x)))
         '''
-
         out = F.relu(self.bn1(self.conv1(x), self.conv1.weight))
         out = F.max_pool2d(out, 2)
         out = F.relu(self.bn2(self.conv2(out), self.conv2.weight))
@@ -88,22 +87,35 @@ def compute_penalties(model, image_dim=28, rho=0.000001):
 
     return penalties
 
-def scale_down_gammas(alpha, model):
+def scale_gammas(alpha, model, scale_down=True):
     # get pairs of consecutive layers
     layers = list(model.children())
 
+    alpha_ = 1 / alpha
+
+    if not scale_down:
+        # after training we want to scale back up so need to invert alpha
+        alpha_  = alpha
+        alpha   = 1 / alpha
+
     for l1, l2 in zip(layers,layers[1:]):
         if(isinstance(l1, nn.BatchNorm2d) and isinstance(l2, nn.Conv2d)):
-            l1.reduce_gammas(alpha)
-            l2.weight.data = (1/alpha) * l2.weight.data
+            l1.weight.data = l1.weight.data * alpha
+            l2.weight.data = l2.weight.data * alpha_
 
     return model
+
+# TODO: write this in a model-agnostic way
+# might need to give list of layers we are reducing
+def switch_to_follow(model):
+    model.bn2.follow = True
 
 def train_model(model_name, model_weights, ista_penalties, num_epochs):
 
     best_acc = 0.
     learning_rate = 0.1
 
+    # should weight decay be zero?
     optimizer    = optim.SGD(model_weights.parameters(), lr=learning_rate, momentum=0.9, weight_decay=5e-4)
     bn_optimizer = bnopt.BatchNormSGD([model_weights.bn1.weight, model_weights.bn2.weight], lr=learning_rate, ista=ista_penalties, momentum=0.9)
 
@@ -127,18 +139,26 @@ def main():
     ista_penalties = compute_penalties(model)
 
     # step two: gamma rescaling trick
-    model = scale_down_gammas(alpha=0.001, model=model)
+    scale_gammas(alpha=0.001, model=model, scale_down=True)
 
     # step three: end-to-end-training
     train_model(model_name="LeNet", model_weights=model, ista_penalties=ista_penalties, num_epochs=2)
 
-    # step four: remove constant channels
+    print(count_params(model))
 
+    # step four: remove constant channels by switching bn to "follow" mode
+    switch_to_follow(model)
 
     # step five: gamma rescaling trick
-
+    scale_gammas(alpha=0.001, model=model, scale_down=False)
 
     # step six: finetune
-
+    num_retraining_epochs=30
+    best_acc = 0.
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
+    for epoch in range(1, num_retraining_epochs):
+        train(model, epoch, optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
+        best_acc = test("LeNet", model, test_loader, best_acc)
+        print(count_params(model))
 
 main()

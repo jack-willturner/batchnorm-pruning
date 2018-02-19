@@ -49,12 +49,10 @@ class BatchNormLayer(nn.Module):
 
 
 class BatchNorm2dEx(nn.BatchNorm2d):
-    def __init__(self, size, alpha=None, follow=False):
+    def __init__(self, size, follow=False):
         super().__init__(size)
         self.alpha = None
-        if alpha:
-            self.alpha = nn.Parameter(torch.ones (size, 1, 1) * alpha)
-            #self.alpha.requires_grad = False <== be super careful of this
+
 
         self.follow = follow # used to decide on avg update strategy
 
@@ -64,9 +62,8 @@ class BatchNorm2dEx(nn.BatchNorm2d):
             self.training, self.momentum, self.eps)
 
         if self.follow:
-            self.means - torch.eq(self.gamma, 0) * F.relu(self.beta).transpose(0,1) * torch.sum(W)
-
+            activations = F.relu(self.bias).view(1,-1) * torch.sum(W)
+            mean = self.running_mean - (torch.eq(self.weight, 0).float().mul(activations)).data
+            mean = mean.view(-1)
+            self.running_mean = mean
         return out
-
-    def reduce_gammas(self, alpha):
-        self.weight.data = self.weight.data * alpha
