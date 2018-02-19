@@ -2,11 +2,11 @@ Work in progress PyTorch implementation of [this paper](https://arxiv.org/abs/18
 
 ISTA pruning process:
 - [x] compute ista penalties for each layer
-- [ ] scale weights of batchnorm layers
+- [x] scale weights of batchnorm layers
 - [x] end to end training - implement SGD, batchnorm layer
 - [ ] mask channels
-- [ ] rescale weights of batchnorm
-- [ ] finetune
+- [x] rescale weights of batchnorm
+- [x] finetune
 
 ## Personal Log
 **14-Feb**: Added initial batchnorm. Plan is to write autograd function that takes an ista penalty and add this to the layer update for gamma.  
