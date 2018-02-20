@@ -52,12 +52,3 @@ class MobileNet(nn.Module):
         out = out.view(out.size(0), -1)
         out = self.linear(out)
         return out
-
-
-def test():
-    net = MobileNet()
-    x = torch.randn(1,3,32,32)
-    y = net(Variable(x))
-    print(y.size())
-
-# test()
