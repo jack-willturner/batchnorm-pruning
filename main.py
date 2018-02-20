@@ -16,10 +16,11 @@ import argparse
 from utils import progress_bar, load_best, get_data, train, test, sparsify, count_sparse_bn
 from torch.autograd import Variable
 
-import MaskLayer
 import sgd as bnopt
 
 from models import *
+
+from models.layers import bn
 
 train_loader, test_loader = get_data()
 
@@ -64,16 +65,20 @@ def scale_gammas(alpha, model, scale_down=True):
         alpha   = 1 / alpha
 
     for l1, l2 in zip(layers,layers[1:]):
-        if(isinstance(l1, BatchNorm2dEx) and isinstance(l2, nn.Conv2d)):
+        if(isinstance(l1, bn.BatchNorm2dEx) and isinstance(l2, nn.Conv2d)):
             l1.weight.data = l1.weight.data * alpha
             l2.weight.data = l2.weight.data * alpha_
 
     return model
 
-# TODO: write this in a model-agnostic way
-# might need to give list of layers we are reducing
+
 def switch_to_follow(model):
-    model.bn2.follow = True
+    first = True # want to skip the first bn layer - only do follow up layers
+    for layer in list(model.children()):
+        if isinstance(layer, bn.BatchNorm2dEx):
+            if not first:
+                layer.follow = True
+            first = False
 
 def train_model(model_name, model_weights, ista_penalties, num_epochs):
 
@@ -82,7 +87,7 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
 
     # should weight decay be zero?
     optimizer    = optim.SGD(model_weights.parameters(), lr=learning_rate, momentum=0.9, weight_decay=5e-4)
-    bn_optimizer = bnopt.BatchNormSGD([model_weights.bn1.weight, model_weights.bn2.weight], lr=learning_rate, ista=ista_penalties, momentum=0.9)
+    bn_optimizer = bnopt.BatchNormSGD([l.weight for l in list(model_weights.children()) if isinstance(l, bn.BatchNorm2dEx)], lr=learning_rate, ista=ista_penalties, momentum=0.9)
 
     for epoch in range(1,num_epochs):
         print(count_sparse_bn(model_weights))
