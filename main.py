@@ -18,7 +18,6 @@ from torch.autograd import Variable
 
 import MaskLayer
 import sgd as bnopt
-from bn import BatchNorm2dEx
 
 from models import *
 

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from .. import bn
+from layers import bn
 
 class LeNet(nn.Module):
     def __init__(self, alpha=0.001):

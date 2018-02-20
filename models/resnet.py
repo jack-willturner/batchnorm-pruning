@@ -12,7 +12,7 @@ import torch.nn.functional as F
 
 from torch.autograd import Variable
 
-from .. import bn
+from layers import bn
 
 
 class BasicBlock(nn.Module):
