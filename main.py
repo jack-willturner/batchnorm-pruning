@@ -17,44 +17,12 @@ from utils import progress_bar, load_best, get_data, train, test, sparsify, coun
 from torch.autograd import Variable
 
 import MaskLayer
-
 import sgd as bnopt
-
 from bn import BatchNorm2dEx
 
-
-class LeNet(nn.Module):
-    def __init__(self, alpha=0.001):
-        super(LeNet, self).__init__()
-        self.alpha = alpha
-        self.prune = False # change this to true when you want to remove channels
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.bn1   = BatchNorm2dEx(6)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.bn2   = BatchNorm2dEx(16)
-        self.fc1   = nn.Linear(16*5*5, 120)
-        self.fc2   = nn.Linear(120, 84)
-        self.fc3   = nn.Linear(84, 10)
-
-    def forward(self, x):
-        '''
-        if prune:
-            x = F.relu(self.bn1(self.mask1(x)))
-        else:
-            x = F.relu(self.bn1(self.conv1(x)))
-        '''
-        out = F.relu(self.bn1(self.conv1(x), self.conv1.weight))
-        out = F.max_pool2d(out, 2)
-        out = F.relu(self.bn2(self.conv2(out), self.conv2.weight))
-        out = F.max_pool2d(out, 2)
-        out = out.view(out.size(0), -1)
-        out = F.relu(self.fc1(out))
-        out = F.relu(self.fc2(out))
-        out = self.fc3(out)
-        return out
+from models import *
 
 train_loader, test_loader = get_data()
-
 
 '''
 Equation (2) on page 6
@@ -131,7 +99,8 @@ model = LeNet()
 ## construct a Dict linking each layer to a corresponding MaskLayer?
 def main():
     # get the model
-    model = LeNet()
+    model = ResNet18()
+    model_name = "ResNet-18"
 
     alpha = 0.01
     rho   = 0.002
@@ -143,7 +112,7 @@ def main():
     scale_gammas(alpha, model=model, scale_down=True)
 
     # step three: end-to-end-training
-    train_model(model_name="LeNet", model_weights=model, ista_penalties=ista_penalties, num_epochs=1000)
+    train_model(model_name=model_name, model_weights=model, ista_penalties=ista_penalties, num_epochs=1000)
 
     # step four: remove constant channels by switching bn to "follow" mode
     switch_to_follow(model)
@@ -157,7 +126,7 @@ def main():
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
     for epoch in range(1, num_retraining_epochs):
         train(model, epoch, optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
-        best_acc = test("LeNet", model, test_loader, best_acc)
+        best_acc = test(model_name, model, test_loader, best_acc)
         print(count_sparse_bn(model))
 
 main()
