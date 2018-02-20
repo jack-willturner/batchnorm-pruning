@@ -12,7 +12,7 @@ import torch.nn.functional as F
 
 from torch.autograd import Variable
 
-from layers import bn
+from .layers import bn
 
 
 class BasicBlock(nn.Module):
@@ -29,7 +29,7 @@ class BasicBlock(nn.Module):
         if stride != 1 or in_planes != self.expansion*planes:
             self.shortcut = nn.Sequential(
                 nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False),
-                bn.BatchNorm2dEd(self.expansion*planes)
+                bn.BatchNorm2dEx(self.expansion*planes)
             )
 
     def forward(self, x):

@@ -92,7 +92,7 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
     return best_acc
 
 
-model = LeNet()
+
 
 
 ## construct a Dict linking each layer to a corresponding MaskLayer?

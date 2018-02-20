@@ -14,7 +14,7 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 
-from bn import BatchNorm2dEx
+from models.layers.bn import BatchNorm2dEx
 
 import torchvision
 import torchvision.transforms as transforms
