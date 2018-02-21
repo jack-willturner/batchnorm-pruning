@@ -91,7 +91,7 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
 
     for epoch in range(1,num_epochs):
         print(count_sparse_bn(model_weights))
-        #train(model_weights, epoch, optimizer, bn_optimizer, train_loader)
+        train(model_weights, epoch, optimizer, bn_optimizer, train_loader)
         best_acc = test(model_name, model_weights, test_loader, best_acc)
 
     return best_acc
@@ -106,8 +106,8 @@ def main():
     model = ResNet18()
     model_name = "ResNet-18"
 
-    alpha = 0.01
-    rho   = 0.002
+    alpha = 1.
+    rho   = 0.001
 
     # step one: compute ista penalties
     ista_penalties = compute_penalties(model, rho)

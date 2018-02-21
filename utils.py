@@ -274,7 +274,7 @@ def count_sparse_bn(model):
     total = 0
     for param in model.children():
         if isinstance(param, BatchNorm2dEx):
-            total += np.count_nonzero(param.weight.data.numpy())
+            total += np.count_nonzero(param.weight.data.cpu().numpy())
     return total
 
 import numpy as np
