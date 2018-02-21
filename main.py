@@ -10,6 +10,8 @@ import torch.backends.cudnn as cudnn
 import torchvision
 import torchvision.transforms as transforms
 
+from tensorboardX import SummaryWriter
+
 import os
 import argparse
 
@@ -21,8 +23,6 @@ import sgd as bnopt
 from models import *
 
 from models.layers import bn
-
-train_loader, test_loader = get_data()
 
 '''
 Equation (2) on page 6
@@ -91,8 +91,8 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
 
     for epoch in range(1,num_epochs):
         print(count_sparse_bn(model_weights))
-        train(model_weights, epoch, optimizer, bn_optimizer, train_loader)
-        best_acc = test(model_name, model_weights, test_loader, best_acc)
+        train(model_weights, epoch, writer, optimizer, bn_optimizer, train_loader)
+        best_acc = test(model_name, model_weights, epoch, writer, test_loader, best_acc)
 
     return best_acc
 
@@ -100,12 +100,15 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
 
 
 
-## construct a Dict linking each layer to a corresponding MaskLayer?
-def main():
+if __name__=='__main__':
+    train_loader, test_loader = get_data()
+    writer = SummaryWriter()
+
     # get the model
     model = ResNet18()
     model_name = "ResNet-18"
 
+    # fixed hyperparams for now - need to add parsing support
     alpha = 1.
     rho   = 0.001
 
@@ -129,8 +132,9 @@ def main():
     best_acc = 0.
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
     for epoch in range(1, num_retraining_epochs):
-        train(model, epoch, optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
-        best_acc = test(model_name, model, test_loader, best_acc)
+        train(model, epoch, writer, optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
+        best_acc = test(model_name, model, epoch, writer, test_loader, best_acc)
         print(count_sparse_bn(model))
 
-main()
+
+    writer.close()

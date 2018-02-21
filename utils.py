@@ -182,7 +182,7 @@ def load_best(model_name, model_wts):
     return model_name, model_wts, best_acc
 
 # Training
-def train(model, epoch, optimizer, bn_optimizer, trainloader, finetune=False):
+def train(model, epoch, writer, optimizer, bn_optimizer, trainloader, finetune=False):
     #model_name, model = model[0], model[1]
     use_cuda = torch.cuda.is_available()
 
@@ -222,10 +222,15 @@ def train(model, epoch, optimizer, bn_optimizer, trainloader, finetune=False):
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
 
+        acc = 100.*correct/total
+
+        writer.add_scalar("Train/Loss", loss, epoch)
+        writer.add_scalar("Train/Top1", acc,  epoch)
+
         progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
             % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
-def test(model_name, model, testloader, best_acc):
+def test(model_name, model, epoch, writer, testloader, best_acc):
     use_cuda = torch.cuda.is_available()
 
     if use_cuda:
@@ -242,7 +247,7 @@ def test(model_name, model, testloader, best_acc):
             inputs, targets = inputs.cuda(), targets.cuda()
         inputs, targets = Variable(inputs, volatile=True), Variable(targets)
         outputs = model(inputs)
-        loss = criterion(outputs, targets)
+        loss    = criterion(outputs, targets)
 
         test_loss += loss.data[0]
         _, predicted = torch.max(outputs.data, 1)
@@ -254,6 +259,10 @@ def test(model_name, model, testloader, best_acc):
 
     # Save checkpoint.
     acc = 100.*correct/total
+
+    writer.add_scalar("Val/Loss", loss, epoch)
+    writer.add_scalar("Val/Top1", acc,  epoch)
+
     if acc > best_acc:
         print('Saving..')
         save_state(model_name, model, acc)
