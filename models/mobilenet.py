@@ -9,19 +9,20 @@ import torch.nn.functional as F
 
 from torch.autograd import Variable
 
+from .layers import bn
 
 class Block(nn.Module):
     '''Depthwise conv + Pointwise conv'''
     def __init__(self, in_planes, out_planes, stride=1):
         super(Block, self).__init__()
         self.conv1 = nn.Conv2d(in_planes, in_planes, kernel_size=3, stride=stride, padding=1, groups=in_planes, bias=False)
-        self.bn1 = nn.BatchNorm2d(in_planes)
+        self.bn1   = bn.BatchNorm2dEx(in_planes)
         self.conv2 = nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=1, padding=0, bias=False)
-        self.bn2 = nn.BatchNorm2d(out_planes)
+        self.bn2   = bn.BatchNorm2dEx(out_planes)
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = F.relu(self.bn2(self.conv2(out)))
+        out = F.relu(self.bn1(self.conv1(x), self.conv1.weight))
+        out = F.relu(self.bn2(self.conv2(out), self.conv2.weight))
         return out
 
 
@@ -32,7 +33,7 @@ class MobileNet(nn.Module):
     def __init__(self, num_classes=10):
         super(MobileNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(32)
+        self.bn1 = bn.BatchNorm2dEx(32)
         self.layers = self._make_layers(in_planes=32)
         self.linear = nn.Linear(1024, num_classes)
 
@@ -46,7 +47,7 @@ class MobileNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
+        out = F.relu(self.bn1(self.conv1(x), self.conv1.weight))
         out = self.layers(out)
         out = F.avg_pool2d(out, 2)
         out = out.view(out.size(0), -1)
