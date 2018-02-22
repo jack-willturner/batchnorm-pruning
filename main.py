@@ -86,7 +86,7 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
     learning_rate = 0.1
 
     # should weight decay be zero?
-    optimizer    = optim.SGD(model_weights.parameters(), lr=learning_rate, momentum=0.9, weight_decay=5e-4)
+    optimizer    = optim.SGD(filter(lambda l : not isinstance(l, bn.BatchNorm2dEx), list(model.children())), lr=learning_rate, momentum=0.9, weight_decay=5e-4)
     bn_optimizer = bnopt.BatchNormSGD([l.weight for l in list(model_weights.children()) if isinstance(l, bn.BatchNorm2dEx)], lr=learning_rate, ista=ista_penalties, momentum=0.9)
 
     for epoch in range(1,num_epochs):
