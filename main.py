@@ -86,11 +86,11 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
     learning_rate = 0.1
 
     # should weight decay be zero?
-    optimizer    = optim.SGD(filter(lambda l : not isinstance(l, bn.BatchNorm2dEx), list(model.children())), lr=learning_rate, momentum=0.9, weight_decay=5e-4)
+    optimizer    = optim.SGD(filter(lambda l : not isinstance(l, bn.BatchNorm2dEx), list(model.parameters())), lr=learning_rate, momentum=0.9, weight_decay=5e-4)
     bn_optimizer = bnopt.BatchNormSGD([l.weight for l in list(model_weights.children()) if isinstance(l, bn.BatchNorm2dEx)], lr=learning_rate, ista=ista_penalties, momentum=0.9)
 
     for epoch in range(1,num_epochs):
-        print(count_sparse_bn(model_weights))
+        print(count_sparse_bn(model_weights, writer, epoch))
         train(model_weights, epoch, writer, optimizer, bn_optimizer, train_loader)
         best_acc = test(model_name, model_weights, epoch, writer, test_loader, best_acc)
 
@@ -105,8 +105,8 @@ if __name__=='__main__':
     writer = SummaryWriter()
 
     # get the model
-    model = ResNet18()
-    model_name = "ResNet-18"
+    model = LeNet()
+    model_name = "LeNet"
 
     # fixed hyperparams for now - need to add parsing support
     alpha = 1.
@@ -134,7 +134,7 @@ if __name__=='__main__':
     for epoch in range(1, num_retraining_epochs):
         train(model, epoch, writer, optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
         best_acc = test(model_name, model, epoch, writer, test_loader, best_acc)
-        print(count_sparse_bn(model))
+        print(count_sparse_bn(model, writer, epoch))
 
 
     writer.close()

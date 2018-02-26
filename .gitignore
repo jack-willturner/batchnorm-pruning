@@ -1,3 +1,4 @@
 saved_models/
 __pycache__/
 data/
+runs/

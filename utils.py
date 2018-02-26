@@ -279,11 +279,31 @@ def count_params(model):
         total = total + np.count_nonzero(flat)
     return total
 
-def count_sparse_bn(model):
+def count_sparse_bn(model, writer, epoch):
     total = 0
-    for param in model.children():
-        if isinstance(param, BatchNorm2dEx):
-            total += np.count_nonzero(param.weight.data.cpu().numpy())
+
+    input_width  = 28
+    input_height = 28
+
+    ls = list(model.children()) # this seems like the most reasonable way to iterate
+
+    for l1, l2 in zip(ls, ls[1:]):
+        if isinstance(l1, nn.Conv2d) and isinstance(l2, BatchNorm2dEx):
+            num_nonzero = np.count_nonzero(l2.weight.data.cpu().numpy())
+
+            k_w, k_h = l1.kernel_size[0], l1.kernel_size[1]
+            padding_w, padding_h  = l1.padding[0], l1.padding[1]
+            stride = l1.stride[0]
+
+            mac_ops_per_kernel = (input_width + padding_w) * (input_height + padding_h) * k_w * k_h
+
+            input_height = (input_height * input_width - k_w * k_h + 2 * padding_h) / stride   + 1
+            input_width  = input_height
+
+            mac_ops = mac_ops_per_kernel * num_nonzero
+            total  += mac_ops
+
+    writer.add_scalar("MAC ops",total, epoch)
     return total
 
 import numpy as np
