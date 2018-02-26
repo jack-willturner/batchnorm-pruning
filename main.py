@@ -15,7 +15,7 @@ from tensorboardX import SummaryWriter
 import os
 import argparse
 
-from utils import progress_bar, load_best, get_data, train, test, sparsify, count_sparse_bn
+from utils import *
 from torch.autograd import Variable
 
 import sgd as bnopt
@@ -90,14 +90,10 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
     bn_optimizer = bnopt.BatchNormSGD([l.weight for l in list(model_weights.children()) if isinstance(l, bn.BatchNorm2dEx)], lr=learning_rate, ista=ista_penalties, momentum=0.9)
 
     for epoch in range(1,num_epochs):
-        print(count_sparse_bn(model_weights, writer, epoch))
         train(model_weights, epoch, writer, optimizer, bn_optimizer, train_loader)
         best_acc = test(model_name, model_weights, epoch, writer, test_loader, best_acc)
 
     return best_acc
-
-
-
 
 
 if __name__=='__main__':
@@ -119,7 +115,8 @@ if __name__=='__main__':
     scale_gammas(alpha, model=model, scale_down=True)
 
     # step three: end-to-end-training
-    train_model(model_name=model_name, model_weights=model, ista_penalties=ista_penalties, num_epochs=1000)
+    train_model(model_name=model_name, model_weights=model, ista_penalties=ista_penalties, num_epochs=2)
+
 
     # step four: remove constant channels by switching bn to "follow" mode
     switch_to_follow(model)
@@ -128,7 +125,7 @@ if __name__=='__main__':
     scale_gammas(alpha, model=model, scale_down=False)
 
     # step six: finetune
-    num_retraining_epochs=100
+    num_retraining_epochs=1
     best_acc = 0.
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
     for epoch in range(1, num_retraining_epochs):
@@ -136,5 +133,23 @@ if __name__=='__main__':
         best_acc = test(model_name, model, epoch, writer, test_loader, best_acc)
         print(count_sparse_bn(model, writer, epoch))
 
+
+
+    ##### Remove all unnecessary channels
+    model_name = "LeNetCompressed"
+
+    # zero out any channels that have a 0 batchnorm weight
+    print("Compressing model...")
+    sparsify_on_bn(model)
+
+    new_model = compress_convs(model)
+
+    # step six: finetune
+    num_retraining_epochs=100
+    best_acc = 0.
+    new_optimizer = optim.SGD(new_model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
+    for epoch in range(1, num_retraining_epochs):
+        train(new_model, epoch, writer, new_optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
+        best_acc = test(model_name, new_model, epoch, writer, test_loader, best_acc)
 
     writer.close()

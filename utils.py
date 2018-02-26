@@ -214,7 +214,7 @@ def train(model, epoch, writer, optimizer, bn_optimizer, trainloader, finetune=F
 
         optimizer.step()
 
-        if not finetune:
+        if not finetune:John Hampden Grammar School
             bn_optimizer.step()
 
         train_loss += loss.data[0]
@@ -227,8 +227,8 @@ def train(model, epoch, writer, optimizer, bn_optimizer, trainloader, finetune=F
         writer.add_scalar("Train/Loss", loss, epoch)
         writer.add_scalar("Train/Top1", acc,  epoch)
 
-        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        #progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+        #    % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
 def test(model_name, model, epoch, writer, testloader, best_acc):
     use_cuda = torch.cuda.is_available()
@@ -331,73 +331,112 @@ def sparsify_on_bn(model):
     '''
 
     for l1, l2 in zip(list(model.children()), list(model.children())[1:]):
-        if isinstance(l1, nn.Conv2d) and isinstance(l2, bn.BatchNorm2dEx):
+        if isinstance(l1, nn.Conv2d) and isinstance(l2, BatchNorm2dEx):
             zeros = argwhere_nonzero(l2.weight, batchnorm=True)
-            l1[zeros] = 0.
+            for z in zeros:
+                l1.weight.data[z] = 0.
 
 
 def argwhere_nonzero(layer, batchnorm=False):
     indices=[]
-
-
     # for batchnorms we want to do the opposite
     if batchnorm:
-        x = layer.data.cpu().numpy()
-        indices = np.argwhere(x, x==0.) # <<- not sure about syntax
+        for idx,w in enumerate(layer):
+            if torch.sum(torch.abs(w)).data.cpu().numpy() == 0.:
+                indices.append(idx)
     else:
         for idx,w in enumerate(layer):
-            if torch.sum(torch.abs(w)) != 0.:
+            if torch.sum(torch.abs(w)).data.cpu().numpy() != 0.:
                 indices.append(idx)
 
     return indices
-
 
 def prune_conv(indices, layer, follow=False):
     # follow tells us whether we need to prune input channels or output channels
     if not follow:
         # prune output channels
-        layer.weight.data = layer.weight[indices].data
-        layer.bias.data   = layer.bias[indices].data
+        layer.weight.data = torch.from_numpy(layer.weight.data.cpu().numpy()[indices])
+        layer.bias.data   = torch.from_numpy(layer.bias.data.cpu().numpy()[indices])
     else:
-        # prune input channels
-        layer.weight.data = layer.weight[:,indices].data
+        # prune input channels - so don't touch biases because we're not changing the number of neurons/nodes/output channels
+        layer.weight.data = torch.from_numpy(layer.weight.data.cpu().numpy()[:,indices])
 
 def prune_fc(indices, channel_size, layer, follow_conv=True):
     if follow_conv:
         # if we are following a conv layer we need to expand each index by the size of the plane
-        indices = [item for sublist in list((map(lambda i : np.arange(i, (i+channel_size)), indices))) for item in sublist]
+        indices = [item for sublist in list((map(lambda i : np.arange((i * channel_size), (i*channel_size+channel_size)), indices))) for item in sublist]
 
-    fc_layer = fc_layer[indices]
+    layer.weight.data = torch.from_numpy(layer.weight.data.cpu().numpy()[:,indices])
 
-def compress_convs(model, dtype):
+def prune_bn(indices, layer):
+    layer.weight.data = torch.from_numpy(layer.weight.data.cpu().numpy()[indices])
+    layer.bias.data   = torch.from_numpy(layer.bias.data.cpu().numpy()[indices])
+
+    layer.running_mean = torch.from_numpy(layer.running_mean.cpu().numpy()[indices])
+    layer.running_var  = torch.from_numpy(layer.running_var.cpu().numpy()[indices])
+
+def compress_convs(model):
 
     ls = list(model.children())
 
     channels = []
     nonzeros = []
+
+
     for l1, l2 in zip(ls, ls[1:]):
-        # this gives us pairs of consecutive layers
+        '''
+        this gives us pairs of consecutive layers but sometimes we need to be able to see multiple layers ahead
+        e.g. if there's a conv1 -> bn1 -> conv2, then pruning conv1 will affect conv2
+
+        there are two ways to address this: add a case (bn followed by conv), or (probably more general) leave a leftover value to be picked up by the following loop
+        '''
+        #nonzeros = []
+        #nonzeros_altered = False # some sanity checks
 
         if isinstance(l1, nn.Conv2d):
+
             nonzeros = argwhere_nonzero(l1.weight)
+            nonzeros_altered = True
+
             channels.append(len(nonzeros))
+
+            channel_size = l1.kernel_size[0] * l1.kernel_size[1]
 
             prune_conv(nonzeros, l1)
 
             if isinstance(l2, nn.Conv2d):
                 prune_conv(nonzeros, l2, follow=True)
             elif isinstance(l2, nn.Linear):
-                channel_size = l1.kernel_width * l1.kernel_height
-                prune_fc(indices, channel_size, l2, follow_conv=True)
-            elif isinstance(l2, nn.BatchNorm2d):
-                prune_fc(indices, 0, l2, follow_conv=False)
+                prune_fc(nonzeros, channel_size, l2, follow_conv=True)
 
 
+        elif isinstance(l1, nn.BatchNorm2d):
+            #nonzeros = argwhere_nonzero(l1.weight)
+            # no need to append to channels since we will already have done it
+            # i.e. num of channels in bn is same as num of channels in last conv layer
 
-    new_model = dtype(channels)
+            assert nonzeros_altered, "batch norm layer appeared before any other"
+
+            prune_bn(nonzeros, l1)
+
+            if isinstance(l2, nn.Conv2d):
+                prune_conv(nonzeros, l2, follow=True)
+            elif isinstance(l2, nn.Linear):
+                prune_fc(nonzeros, channel_size, l2, follow_conv=True) # TODO fix this please
+
+
+    from models import LeNetCompressed
+    new_model = LeNetCompressed(channels)
 
     for original, compressed in zip(model.children(), new_model.children()):
         compressed.weight = original.weight
         compressed.bias   = original.bias
+
+    for layer in new_model.children():
+        print(layer)
+        print(layer.weight.size())
+        print(layer.bias.size())
+
+        print("\n=====================\n")
 
     return new_model

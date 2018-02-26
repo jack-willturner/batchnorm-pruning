@@ -31,11 +31,11 @@ class LeNet(nn.Module):
 
 
 
-class LeNetCompressed(LeNet):
-    def __init__(self, alpha=0.001):
+class LeNetCompressed(nn.Module):
+    def __init__(self, channels=[]):
         super(LeNetCompressed, self).__init__()
-        self.alpha = alpha
-        self.prune = False # change this to true when you want to remove channels
+        print(channels)
+
         self.conv1 = nn.Conv2d(3, channels[0], 5)
         self.bn1   = nn.BatchNorm2d(channels[0])
         self.conv2 = nn.Conv2d(channels[0], channels[1], 5)
@@ -49,7 +49,6 @@ class LeNetCompressed(LeNet):
         out = F.relu(self.bn1(self.conv1(x)))
         out = F.max_pool2d(out, 2)
         out = F.relu(self.bn2(self.conv2(out)))
-        out = F.max_pool2d(out, 2)
         out = out.view(out.size(0), -1)
         out = F.relu(self.fc1(out))
         out = F.relu(self.fc2(out))
