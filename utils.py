@@ -300,3 +300,84 @@ def sparsify(model, sparsity_level=50.):
 
             param.data = param.data * mask
     return model
+
+
+def sparsify_on_bn(model):
+    '''
+    Here we zero out whole planes where their batchnorm weight is 0
+    1. Consider lists in pairs
+    2. If conv followed by batchnorm - get nonzeros from batchnorm
+    3. Zero out whole conv filters
+    '''
+
+    for l1, l2 in zip(list(model.children()), list(model.children())[1:]):
+        if isinstance(l1, nn.Conv2d) and isinstance(l2, bn.BatchNorm2dEx):
+            zeros = argwhere_nonzero(l2.weight, batchnorm=True)
+            l1[zeros] = 0.
+
+
+def argwhere_nonzero(layer, batchnorm=False):
+    indices=[]
+
+
+    # for batchnorms we want to do the opposite
+    if batchnorm:
+        x = layer.data.cpu().numpy()
+        indices = np.argwhere(x, x==0.) # <<- not sure about syntax
+    else:
+        for idx,w in enumerate(layer):
+            if torch.sum(torch.abs(w)) != 0.:
+                indices.append(idx)
+
+    return indices
+
+
+def prune_conv(indices, layer, follow=False):
+    # follow tells us whether we need to prune input channels or output channels
+    if not follow:
+        # prune output channels
+        layer.weight.data = layer.weight[indices].data
+        layer.bias.data   = layer.bias[indices].data
+    else:
+        # prune input channels
+        layer.weight.data = layer.weight[:,indices].data
+
+def prune_fc(indices, channel_size, layer, follow_conv=True):
+    if follow_conv:
+        # if we are following a conv layer we need to expand each index by the size of the plane
+        indices = [item for sublist in list((map(lambda i : np.arange(i, (i+channel_size)), indices))) for item in sublist]
+
+    fc_layer = fc_layer[indices]
+
+def compress_convs(model, dtype):
+
+    ls = list(model.children())
+
+    channels = []
+    nonzeros = []
+    for l1, l2 in zip(ls, ls[1:]):
+        # this gives us pairs of consecutive layers
+
+        if isinstance(l1, nn.Conv2d):
+            nonzeros = argwhere_nonzero(l1.weight)
+            channels.append(len(nonzeros))
+
+            prune_conv(nonzeros, l1)
+
+            if isinstance(l2, nn.Conv2d):
+                prune_conv(nonzeros, l2, follow=True)
+            elif isinstance(l2, nn.Linear):
+                channel_size = l1.kernel_width * l1.kernel_height
+                prune_fc(indices, channel_size, l2, follow_conv=True)
+            elif isinstance(l2, nn.BatchNorm2d):
+                prune_fc(indices, 0, l2, follow_conv=False)
+
+
+
+    new_model = dtype(channels)
+
+    for original, compressed in zip(model.children(), new_model.children()):
+        compressed.weight = original.weight
+        compressed.bias   = original.bias
+
+    return new_model
