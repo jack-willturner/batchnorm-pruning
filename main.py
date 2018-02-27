@@ -10,7 +10,7 @@ import torch.backends.cudnn as cudnn
 import torchvision
 import torchvision.transforms as transforms
 
-from tensorboardX import SummaryWriter
+from tensorboardX import SummaryWriter, FileWriter
 
 import os
 import argparse
@@ -90,19 +90,21 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
     bn_optimizer = bnopt.BatchNormSGD([l.weight for l in list(model_weights.children()) if isinstance(l, bn.BatchNorm2dEx)], lr=learning_rate, ista=ista_penalties, momentum=0.9)
 
     for epoch in range(1,num_epochs):
-        train(model_weights, epoch, writer, optimizer, bn_optimizer, train_loader)
-        best_acc = test(model_name, model_weights, epoch, writer, test_loader, best_acc)
+        train(model_weights, epoch, writer, "train", optimizer, bn_optimizer, train_loader)
+        best_acc = test(model_name, model_weights, epoch, writer, "train", test_loader, best_acc)
 
     return best_acc
 
 
 if __name__=='__main__':
     train_loader, test_loader = get_data()
+    
     writer = SummaryWriter()
+    
 
     # get the model
-    model = LeNet()
-    model_name = "LeNet"
+    model = ResNet18()
+    model_name = "ResNet-18"
 
     # fixed hyperparams for now - need to add parsing support
     alpha = 1.
@@ -114,9 +116,10 @@ if __name__=='__main__':
     # step two: gamma rescaling trick
     scale_gammas(alpha, model=model, scale_down=True)
 
+    count_sparse_bn(model, writer, 0)
+
     # step three: end-to-end-training
     train_model(model_name=model_name, model_weights=model, ista_penalties=ista_penalties, num_epochs=2)
-
 
     # step four: remove constant channels by switching bn to "follow" mode
     switch_to_follow(model)
@@ -129,9 +132,9 @@ if __name__=='__main__':
     best_acc = 0.
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
     for epoch in range(1, num_retraining_epochs):
-        train(model, epoch, writer, optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
-        best_acc = test(model_name, model, epoch, writer, test_loader, best_acc)
-        print(count_sparse_bn(model, writer, epoch))
+        train(model, epoch, writer,"finetune", optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
+        best_acc = test(model_name, model, epoch, writer,"finetune", test_loader, best_acc)
+        count_sparse_bn(model, writer, epoch)
 
 
 
@@ -145,11 +148,11 @@ if __name__=='__main__':
     new_model = compress_convs(model)
 
     # step six: finetune
-    num_retraining_epochs=100
+    num_retraining_epochs=30
     best_acc = 0.
     new_optimizer = optim.SGD(new_model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
     for epoch in range(1, num_retraining_epochs):
-        train(new_model, epoch, writer, new_optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
-        best_acc = test(model_name, new_model, epoch, writer, test_loader, best_acc)
+        train(new_model, epoch, writer, "compress_finetune",  new_optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
+        best_acc = test(model_name, new_model, epoch, writer, "compress_finetune", test_loader, best_acc)
 
     writer.close()

@@ -182,7 +182,7 @@ def load_best(model_name, model_wts):
     return model_name, model_wts, best_acc
 
 # Training
-def train(model, epoch, writer, optimizer, bn_optimizer, trainloader, finetune=False):
+def train(model, epoch, writer, plot_name,  optimizer, bn_optimizer, trainloader, finetune=False):
     #model_name, model = model[0], model[1]
     use_cuda = torch.cuda.is_available()
 
@@ -223,14 +223,14 @@ def train(model, epoch, writer, optimizer, bn_optimizer, trainloader, finetune=F
         correct     += predicted.eq(targets.data).cpu().sum()
 
         acc = 100.*correct/total
+        
+        writer.add_scalar((plot_name + ": Train/Loss"), loss, epoch)
+        writer.add_scalar((plot_name + ": Train/Top1"), acc,  epoch)
 
-        writer.add_scalar("Train/Loss", loss, epoch)
-        writer.add_scalar("Train/Top1", acc,  epoch)
+        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+            % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
-        #progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-        #    % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
-
-def test(model_name, model, epoch, writer, testloader, best_acc):
+def test(model_name, model, epoch, writer,plot_name, testloader, best_acc):
     use_cuda = torch.cuda.is_available()
 
     if use_cuda:
@@ -254,14 +254,14 @@ def test(model_name, model, epoch, writer, testloader, best_acc):
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
 
-        #progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-        #    % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+            % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
     # Save checkpoint.
     acc = 100.*correct/total
 
-    writer.add_scalar("Val/Loss", loss, epoch)
-    writer.add_scalar("Val/Top1", acc,  epoch)
+    writer.add_scalar((plot_name + ": Val/Loss"), loss, epoch)
+    writer.add_scalar((plot_name + ": Val/Top1"), acc,  epoch)
 
     if acc > best_acc:
         print('Saving..')
@@ -303,7 +303,7 @@ def count_sparse_bn(model, writer, epoch):
             mac_ops = mac_ops_per_kernel * num_nonzero
             total  += mac_ops
 
-    writer.add_scalar("MAC ops",total, epoch)
+    writer.add_scalar("MAC ops", total, epoch)
     return total
 
 import numpy as np
@@ -357,7 +357,8 @@ def prune_conv(indices, layer, follow=False):
     if not follow:
         # prune output channels
         layer.weight.data = torch.from_numpy(layer.weight.data.cpu().numpy()[indices])
-        layer.bias.data   = torch.from_numpy(layer.bias.data.cpu().numpy()[indices])
+        if layer.bias:
+            layer.bias.data   = torch.from_numpy(layer.bias.data.cpu().numpy()[indices])
     else:
         # prune input channels - so don't touch biases because we're not changing the number of neurons/nodes/output channels
         layer.weight.data = torch.from_numpy(layer.weight.data.cpu().numpy()[:,indices])
