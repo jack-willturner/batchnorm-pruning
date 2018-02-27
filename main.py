@@ -92,6 +92,7 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
     for epoch in range(1,num_epochs):
         train(model_weights, epoch, writer, "train", optimizer, bn_optimizer, train_loader)
         best_acc = test(model_name, model_weights, epoch, writer, "train", test_loader, best_acc)
+        count_sparse_bn(model, writer, epoch)
 
     return best_acc
 
@@ -119,7 +120,7 @@ if __name__=='__main__':
     count_sparse_bn(model, writer, 0)
 
     # step three: end-to-end-training
-    train_model(model_name=model_name, model_weights=model, ista_penalties=ista_penalties, num_epochs=2)
+    train_model(model_name=model_name, model_weights=model, ista_penalties=ista_penalties, num_epochs=1)
 
     # step four: remove constant channels by switching bn to "follow" mode
     switch_to_follow(model)
@@ -148,7 +149,7 @@ if __name__=='__main__':
     new_model = compress_convs(model)
 
     # step six: finetune
-    num_retraining_epochs=30
+    num_retraining_epochs=5
     best_acc = 0.
     new_optimizer = optim.SGD(new_model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
     for epoch in range(1, num_retraining_epochs):

@@ -415,6 +415,8 @@ def compress_convs(model):
                 prune_fc(nonzeros, channel_size, l2, follow_conv=True) # TODO fix this please
 
 
+    print(channels)
+
     from models import ResNet18Compressed
     new_model = ResNet18Compressed(channels)
 

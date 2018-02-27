@@ -101,9 +101,9 @@ class ResNet(nn.Module):
         return out
 
 
-def ResNetCompressed(nn.Module):
+class ResNetCompressed(nn.Module):
     def __init__(self, block, num_blocks, channels, num_classes=10):
-        super(ResNet, self).__init__()
+        super(ResNetCompressed, self).__init__()
         self.in_planes = channels[0]
 
         self.conv1  = nn.Conv2d(3, channels[0], kernel_size=3, stride=1, padding=1, bias=False)
