@@ -214,13 +214,13 @@ def train(model, epoch, writer, optimizer, bn_optimizer, trainloader, finetune=F
 
         optimizer.step()
 
-        if not finetune:John Hampden Grammar School
+        if not finetune:
             bn_optimizer.step()
 
-        train_loss += loss.data[0]
+        train_loss  += loss.data[0]
         _, predicted = torch.max(outputs.data, 1)
-        total += targets.size(0)
-        correct += predicted.eq(targets.data).cpu().sum()
+        total       += targets.size(0)
+        correct     += predicted.eq(targets.data).cpu().sum()
 
         acc = 100.*correct/total
 
@@ -254,8 +254,8 @@ def test(model_name, model, epoch, writer, testloader, best_acc):
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
 
-        progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        #progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+        #    % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
     # Save checkpoint.
     acc = 100.*correct/total
@@ -353,6 +353,7 @@ def argwhere_nonzero(layer, batchnorm=False):
 
 def prune_conv(indices, layer, follow=False):
     # follow tells us whether we need to prune input channels or output channels
+    a,b,c,d = layer.weight.data.cpu().numpy().shape
     if not follow:
         # prune output channels
         layer.weight.data = torch.from_numpy(layer.weight.data.cpu().numpy()[indices])
@@ -362,6 +363,7 @@ def prune_conv(indices, layer, follow=False):
         layer.weight.data = torch.from_numpy(layer.weight.data.cpu().numpy()[:,indices])
 
 def prune_fc(indices, channel_size, layer, follow_conv=True):
+    a,b = layer.weight.data.cpu().numpy().shape
     if follow_conv:
         # if we are following a conv layer we need to expand each index by the size of the plane
         indices = [item for sublist in list((map(lambda i : np.arange((i * channel_size), (i*channel_size+channel_size)), indices))) for item in sublist]
@@ -382,33 +384,20 @@ def compress_convs(model):
     channels = []
     nonzeros = []
 
-
     for l1, l2 in zip(ls, ls[1:]):
-        '''
-        this gives us pairs of consecutive layers but sometimes we need to be able to see multiple layers ahead
-        e.g. if there's a conv1 -> bn1 -> conv2, then pruning conv1 will affect conv2
-
-        there are two ways to address this: add a case (bn followed by conv), or (probably more general) leave a leftover value to be picked up by the following loop
-        '''
-        #nonzeros = []
-        #nonzeros_altered = False # some sanity checks
-
         if isinstance(l1, nn.Conv2d):
 
             nonzeros = argwhere_nonzero(l1.weight)
             nonzeros_altered = True
 
             channels.append(len(nonzeros))
-
             channel_size = l1.kernel_size[0] * l1.kernel_size[1]
-
             prune_conv(nonzeros, l1)
 
             if isinstance(l2, nn.Conv2d):
                 prune_conv(nonzeros, l2, follow=True)
             elif isinstance(l2, nn.Linear):
                 prune_fc(nonzeros, channel_size, l2, follow_conv=True)
-
 
         elif isinstance(l1, nn.BatchNorm2d):
             #nonzeros = argwhere_nonzero(l1.weight)
@@ -428,14 +417,16 @@ def compress_convs(model):
     from models import LeNetCompressed
     new_model = LeNetCompressed(channels)
 
+
     for original, compressed in zip(model.children(), new_model.children()):
-        compressed.weight = original.weight
-        compressed.bias   = original.bias
+        compressed.weight.data = original.weight.data
+        compressed.bias.data   = original.bias.data
+    
 
     for layer in new_model.children():
         print(layer)
-        print(layer.weight.size())
-        print(layer.bias.size())
+        print(layer.weight.data.size())
+        print(layer.bias.data.size())
 
         print("\n=====================\n")
 

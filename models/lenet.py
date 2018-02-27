@@ -49,6 +49,7 @@ class LeNetCompressed(nn.Module):
         out = F.relu(self.bn1(self.conv1(x)))
         out = F.max_pool2d(out, 2)
         out = F.relu(self.bn2(self.conv2(out)))
+        out = F.max_pool2d(out, 2)
         out = out.view(out.size(0), -1)
         out = F.relu(self.fc1(out))
         out = F.relu(self.fc2(out))
