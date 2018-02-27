@@ -13,12 +13,13 @@ I will add command line support for hyperparameters soon, but for now they will 
 python main.py
 ```
 
-## Results
-Coming soon...  
-Things that could probably go here:
-- [ ] table replicated ResNet20 results on CIFAR-10
-- [ ] graph of num params/ accuracy tradeoff for different sparse penalties
-
+## Results on CIFAR-10
+| Model                | Size  | MAC ops | Inf. time | Accuracy |
+|----------------------|-------|---------|-----------|----------|
+| LeNet                | 250kB |         |           |  71.49%  |
+| LeNet-Compressed     | 200kB |         |           |  72.67%  |
+| ResNet-18            |       |         |           |          |
+| ResNet-18-Compressed |       |         |           |          |
 
 ## Citing
 Now accepted to ICLR 2018, will update bibtex soon:
