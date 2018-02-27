@@ -98,9 +98,9 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
 
 if __name__=='__main__':
     train_loader, test_loader = get_data()
-    
+
     writer = SummaryWriter()
-    
+
 
     # get the model
     model = ResNet18()
@@ -139,7 +139,7 @@ if __name__=='__main__':
 
 
     ##### Remove all unnecessary channels
-    model_name = "LeNetCompressed"
+    model_name = "ResNet18Compressed"
 
     # zero out any channels that have a 0 batchnorm weight
     print("Compressing model...")

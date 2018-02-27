@@ -223,7 +223,7 @@ def train(model, epoch, writer, plot_name,  optimizer, bn_optimizer, trainloader
         correct     += predicted.eq(targets.data).cpu().sum()
 
         acc = 100.*correct/total
-        
+
         writer.add_scalar((plot_name + ": Train/Loss"), loss, epoch)
         writer.add_scalar((plot_name + ": Train/Top1"), acc,  epoch)
 
@@ -415,14 +415,14 @@ def compress_convs(model):
                 prune_fc(nonzeros, channel_size, l2, follow_conv=True) # TODO fix this please
 
 
-    from models import LeNetCompressed
-    new_model = LeNetCompressed(channels)
+    from models import ResNet18Compressed
+    new_model = ResNet18Compressed(channels)
 
 
     for original, compressed in zip(model.children(), new_model.children()):
         compressed.weight.data = original.weight.data
         compressed.bias.data   = original.bias.data
-    
+
 
     for layer in new_model.children():
         print(layer)
