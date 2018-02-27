@@ -30,7 +30,7 @@ Equation (2) on page 6
 def compute_penalties(model, image_dim=28, rho=0.000001):
     penalties = []
     # only considering conv layers with batchnorm
-    layers = list(filter(lambda l : isinstance(l, nn.Conv2d), list(model.children())))
+    layers = list(filter(lambda l : isinstance(l, nn.Conv2d), expand_model(model))))
 
     # zip xs ([tail xs]) - need to know kernel size of follow-up layer
     for i in range(len(layers)):
@@ -55,7 +55,7 @@ def compute_penalties(model, image_dim=28, rho=0.000001):
 
 def scale_gammas(alpha, model, scale_down=True):
     # get pairs of consecutive layers
-    layers = list(model.children())
+    layers = expand_model(model)
 
     alpha_ = 1 / alpha
 
@@ -74,7 +74,7 @@ def scale_gammas(alpha, model, scale_down=True):
 
 def switch_to_follow(model):
     first = True # want to skip the first bn layer - only do follow up layers
-    for layer in list(model.children()):
+    for layer in expand_model(model):
         if isinstance(layer, bn.BatchNorm2dEx):
             if not first:
                 layer.follow = True

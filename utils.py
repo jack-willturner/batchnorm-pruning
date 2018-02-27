@@ -285,7 +285,7 @@ def count_sparse_bn(model, writer, epoch):
     input_width  = 28
     input_height = 28
 
-    ls = list(model.children()) # this seems like the most reasonable way to iterate
+    ls = expand_model(model) # this seems like the most reasonable way to iterate
 
     for l1, l2 in zip(ls, ls[1:]):
         if isinstance(l1, nn.Conv2d) and isinstance(l2, BatchNorm2dEx):
@@ -330,7 +330,7 @@ def sparsify_on_bn(model):
     3. Zero out whole conv filters
     '''
 
-    for l1, l2 in zip(list(model.children()), list(model.children())[1:]):
+    for l1, l2 in zip(expand_model(model), expand_model(model)[1:]):
         if isinstance(l1, nn.Conv2d) and isinstance(l2, BatchNorm2dEx):
             zeros = argwhere_nonzero(l2.weight, batchnorm=True)
             for z in zeros:
@@ -380,7 +380,7 @@ def prune_bn(indices, layer):
 
 def compress_convs(model):
 
-    ls = list(model.children())
+    ls = expand_model(model)
 
     channels = []
     nonzeros = []
@@ -421,12 +421,12 @@ def compress_convs(model):
     new_model = ResNet18Compressed(channels)
 
 
-    for original, compressed in zip(model.children(), new_model.children()):
+    for original, compressed in zip(expand_model(model), expand_model(new_model)):
         compressed.weight.data = original.weight.data
         compressed.bias.data   = original.bias.data
 
 
-    for layer in new_model.children():
+    for layer in expand_model(new_model):
         print(layer)
         print(layer.weight.data.size())
         print(layer.bias.data.size())
@@ -434,3 +434,11 @@ def compress_convs(model):
         print("\n=====================\n")
 
     return new_model
+
+def expand_model(model, layers):
+     for layer in model.children():
+         if len(list(layer.children())) > 0:
+             expand_model(layer, layers)
+         else:
+             layers.append(layer)
+     return layers
