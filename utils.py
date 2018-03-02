@@ -227,6 +227,7 @@ def train(model, epoch, writer, plot_name,  optimizer, bn_optimizer, trainloader
         writer.add_scalar((plot_name + ": Train/Loss"), loss, epoch)
         writer.add_scalar((plot_name + ": Train/Top1"), acc,  epoch)
 
+
         progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
             % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
@@ -280,10 +281,10 @@ def count_params(model):
     return total
 
 def count_sparse_bn(model, writer, epoch):
-    total = 0
+    total = 0.
 
-    input_width  = 28
-    input_height = 28
+    input_width  = 28.
+    input_height = 28.
 
     ls = expand_model(model) # this seems like the most reasonable way to iterate
 
@@ -291,14 +292,16 @@ def count_sparse_bn(model, writer, epoch):
         if isinstance(l1, nn.Conv2d) and isinstance(l2, BatchNorm2dEx):
             num_nonzero = np.count_nonzero(l2.weight.data.cpu().numpy())
 
+            print("num_nonzero: ", num_nonzero)
+
             k_w, k_h = l1.kernel_size[0], l1.kernel_size[1]
             padding_w, padding_h  = l1.padding[0], l1.padding[1]
             stride = l1.stride[0]
-
+           
             mac_ops_per_kernel = (input_width + padding_w) * (input_height + padding_h) * k_w * k_h
 
-            input_height = (input_height * input_width - k_w * k_h + 2 * padding_h) / stride   + 1
-            input_width  = input_height
+            input_height = (input_height - k_h + (2 * padding_h) / stride) + 1
+            input_width  = (input_width  - k_w + (2 * padding_w) / stride) + 1
 
             mac_ops = mac_ops_per_kernel * num_nonzero
             total  += mac_ops
@@ -354,6 +357,7 @@ def argwhere_nonzero(layer, batchnorm=False):
 def prune_conv(indices, layer, follow=False):
     # follow tells us whether we need to prune input channels or output channels
     a,b,c,d = layer.weight.data.cpu().numpy().shape
+    
     if not follow:
         # prune output channels
         layer.weight.data = torch.from_numpy(layer.weight.data.cpu().numpy()[indices])
@@ -384,9 +388,10 @@ def compress_convs(model):
 
     channels = []
     nonzeros = []
+    skip_connection = []
 
     for l1, l2 in zip(ls, ls[1:]):
-        if isinstance(l1, nn.Conv2d):
+        if isinstance(l1, nn.Conv2d): 
 
             nonzeros = argwhere_nonzero(l1.weight)
             nonzeros_altered = True
@@ -399,43 +404,42 @@ def compress_convs(model):
                 prune_conv(nonzeros, l2, follow=True)
             elif isinstance(l2, nn.Linear):
                 prune_fc(nonzeros, channel_size, l2, follow_conv=True)
+            elif isinstance(l2, nn.Sequential):
+                # save for skip connection
+                skip_connection = nonzeros
 
         elif isinstance(l1, nn.BatchNorm2d):
-            #nonzeros = argwhere_nonzero(l1.weight)
             # no need to append to channels since we will already have done it
             # i.e. num of channels in bn is same as num of channels in last conv layer
 
-            assert nonzeros_altered, "batch norm layer appeared before any other"
+            assert nonzeros_altered, "batch norm layer appeared before a convolutional layer"
+            
+            l1_channels = l1.num_features
 
             prune_bn(nonzeros, l1)
 
             if isinstance(l2, nn.Conv2d):
-                prune_conv(nonzeros, l2, follow=True)
+                if (l2.in_channels < l1_channels) and (len(skip_connection) > 0): # if this is a skip connection:
+                    prune_conv(skip_connection, l2, follow=True)
+                elif l1_channels == l2.in_channels:
+                    prune_conv(nonzeros, l2, follow=True)
             elif isinstance(l2, nn.Linear):
                 prune_fc(nonzeros, channel_size, l2, follow_conv=True) # TODO fix this please
-
 
     print(channels)
 
     from models import ResNet18Compressed
     new_model = ResNet18Compressed(channels)
 
-
     for original, compressed in zip(expand_model(model), expand_model(new_model)):
-        compressed.weight.data = original.weight.data
-        compressed.bias.data   = original.bias.data
-
-
-    for layer in expand_model(new_model):
-        print(layer)
-        print(layer.weight.data.size())
-        print(layer.bias.data.size())
-
-        print("\n=====================\n")
+        if not isinstance(original, nn.Sequential):
+            compressed.weight.data = original.weight.data
+            if original.bias is not None:
+                compressed.bias.data   = original.bias.data
 
     return new_model
 
-def expand_model(model, layers):
+def expand_model(model, layers=[]):
      for layer in model.children():
          if len(list(layer.children())) > 0:
              expand_model(layer, layers)
