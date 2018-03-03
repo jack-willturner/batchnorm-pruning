@@ -30,7 +30,7 @@ Equation (2) on page 6
 def compute_penalties(model, image_dim=28, rho=0.000001):
     penalties = []
     # only considering conv layers with batchnorm
-    layers = list(filter(lambda l : isinstance(l, nn.Conv2d), expand_model(model)))
+    layers = list(filter(lambda l : isinstance(l, nn.Conv2d), expand_model(model, [])))
 
     # zip xs ([tail xs]) - need to know kernel size of follow-up layer
     for i in range(len(layers)):
@@ -55,7 +55,7 @@ def compute_penalties(model, image_dim=28, rho=0.000001):
 
 def scale_gammas(alpha, model, scale_down=True):
     # get pairs of consecutive layers
-    layers = expand_model(model)
+    layers = expand_model(model, [])
 
     alpha_ = 1 / alpha
 
@@ -74,7 +74,7 @@ def scale_gammas(alpha, model, scale_down=True):
 
 def switch_to_follow(model):
     first = True # want to skip the first bn layer - only do follow up layers
-    for layer in expand_model(model):
+    for layer in expand_model(model, []):
         if isinstance(layer, bn.BatchNorm2dEx):
             if not first:
                 layer.follow = True
@@ -113,7 +113,7 @@ if __name__=='__main__':
 
     # fixed hyperparams for now - need to add parsing support
     alpha = 1.
-    rho   = 0.001
+    rho   = 0.0001
 
     # step one: compute ista penalties
     ista_penalties = compute_penalties(model, rho)
@@ -124,7 +124,7 @@ if __name__=='__main__':
     count_sparse_bn(model, writer, 0)
 
     # step three: end-to-end-training
-    train_model(model_name=model_name, model_weights=model, ista_penalties=ista_penalties, num_epochs=80)
+    train_model(model_name=model_name, model_weights=model, ista_penalties=ista_penalties, num_epochs=50)
 
     # step four: remove constant channels by switching bn to "follow" mode
     switch_to_follow(model)
@@ -133,7 +133,7 @@ if __name__=='__main__':
     scale_gammas(alpha, model=model, scale_down=False)
 
     # step six: finetune
-    num_retraining_epochs=50
+    num_retraining_epochs=10
     best_acc = 0.
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
     for epoch in range(1, num_retraining_epochs):
@@ -144,13 +144,13 @@ if __name__=='__main__':
 
 
     ##### Remove all unnecessary channels
-    model_name = "ResNet18Compressed"
+    model_name = model_name + "Compressed"
 
     # zero out any channels that have a 0 batchnorm weight
     print("Compressing model...")
     sparsify_on_bn(model)
 
-    new_model = compress_convs(model)
+    new_model = compress_convs(model, ResNet18Compressed)
 
     # step six: finetune
     num_retraining_epochs=20

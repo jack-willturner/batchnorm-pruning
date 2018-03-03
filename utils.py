@@ -286,14 +286,14 @@ def count_sparse_bn(model, writer, epoch):
     input_width  = 28.
     input_height = 28.
 
-    ls = expand_model(model) # this seems like the most reasonable way to iterate
+    ls = expand_model(model, []) # this seems like the most reasonable way to iterate
+
 
     for l1, l2 in zip(ls, ls[1:]):
         if isinstance(l1, nn.Conv2d) and isinstance(l2, BatchNorm2dEx):
             num_nonzero = np.count_nonzero(l2.weight.data.cpu().numpy())
-
-            print("num_nonzero: ", num_nonzero)
-
+            
+            writer.add_scalar(str(l1), num_nonzero, epoch)
             k_w, k_h = l1.kernel_size[0], l1.kernel_size[1]
             padding_w, padding_h  = l1.padding[0], l1.padding[1]
             stride = l1.stride[0]
@@ -305,6 +305,7 @@ def count_sparse_bn(model, writer, epoch):
 
             mac_ops = mac_ops_per_kernel * num_nonzero
             total  += mac_ops
+
 
     writer.add_scalar("MAC ops", total, epoch)
     return total
@@ -333,7 +334,7 @@ def sparsify_on_bn(model):
     3. Zero out whole conv filters
     '''
 
-    for l1, l2 in zip(expand_model(model), expand_model(model)[1:]):
+    for l1, l2 in zip(expand_model(model, []), expand_model(model, [])[1:]):
         if isinstance(l1, nn.Conv2d) and isinstance(l2, BatchNorm2dEx):
             zeros = argwhere_nonzero(l2.weight, batchnorm=True)
             for z in zeros:
@@ -382,9 +383,9 @@ def prune_bn(indices, layer):
     layer.running_mean = torch.from_numpy(layer.running_mean.cpu().numpy()[indices])
     layer.running_var  = torch.from_numpy(layer.running_var.cpu().numpy()[indices])
 
-def compress_convs(model):
+def compress_convs(model, compressed):
 
-    ls = expand_model(model)
+    ls = expand_model(model, [])
 
     channels = []
     nonzeros = []
@@ -428,10 +429,9 @@ def compress_convs(model):
 
     print(channels)
 
-    from models import ResNet18Compressed
-    new_model = ResNet18Compressed(channels)
+    new_model = compressed(channels)
 
-    for original, compressed in zip(expand_model(model), expand_model(new_model)):
+    for original, compressed in zip(expand_model(model, []), expand_model(new_model, [])):
         if not isinstance(original, nn.Sequential):
             compressed.weight.data = original.weight.data
             if original.bias is not None:
@@ -439,10 +439,10 @@ def compress_convs(model):
 
     return new_model
 
-def expand_model(model, layers=[]):
-     for layer in model.children():
+def expand_model(model, layers=[]): 
+    for layer in model.children():
          if len(list(layer.children())) > 0:
              expand_model(layer, layers)
          else:
              layers.append(layer)
-     return layers
+    return layers
