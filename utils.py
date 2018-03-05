@@ -432,6 +432,10 @@ def compress_convs(model, compressed):
     new_model = compressed(channels)
 
     for original, compressed in zip(expand_model(model, []), expand_model(new_model, [])):
+        print("original: ", original)
+        print("compressed: ", compressed)
+        print("===============\n\n\n")
+
         if not isinstance(original, nn.Sequential):
             compressed.weight.data = original.weight.data
             if original.bias is not None:

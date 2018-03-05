@@ -124,7 +124,7 @@ if __name__=='__main__':
     count_sparse_bn(model, writer, 0)
 
     # step three: end-to-end-training
-    train_model(model_name=model_name, model_weights=model, ista_penalties=ista_penalties, num_epochs=50)
+    train_model(model_name=model_name, model_weights=model, ista_penalties=ista_penalties, num_epochs=5)
 
     # step four: remove constant channels by switching bn to "follow" mode
     switch_to_follow(model)
@@ -133,7 +133,7 @@ if __name__=='__main__':
     scale_gammas(alpha, model=model, scale_down=False)
 
     # step six: finetune
-    num_retraining_epochs=10
+    num_retraining_epochs=5
     best_acc = 0.
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
     for epoch in range(1, num_retraining_epochs):
@@ -153,7 +153,7 @@ if __name__=='__main__':
     new_model = compress_convs(model, ResNet18Compressed)
 
     # step six: finetune
-    num_retraining_epochs=20
+    num_retraining_epochs=2
     best_acc = 0.
     new_optimizer = optim.SGD(new_model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
     for epoch in range(1, num_retraining_epochs):
@@ -161,5 +161,5 @@ if __name__=='__main__':
         best_acc = test(model_name, new_model, epoch, writer, "compress_finetune", test_loader, best_acc)
         
 
-
+    writer.export_scalars_to_json("./all_scalars.json")
     writer.close()
