@@ -170,7 +170,7 @@ def save_state(model_name, model_weights, acc):
     torch.save(state, 'saved_models/ckpt'+model_name+'.t7')
 
 def load_best(model_name, model_wts):
-    filename   = 'saved_models/ckpt_' + model_name + '.t7'
+    filename   = 'saved_models/ckpt' + model_name + '.t7'
     checkpoint = torch.load(filename)
 
     best_acc = checkpoint['acc']
@@ -362,7 +362,7 @@ def prune_conv(indices, layer, follow=False):
     if not follow:
         # prune output channels
         layer.weight.data = torch.from_numpy(layer.weight.data.cpu().numpy()[indices])
-        if layer.bias:
+        if layer.bias is not None:
             layer.bias.data   = torch.from_numpy(layer.bias.data.cpu().numpy()[indices])
     else:
         # prune input channels - so don't touch biases because we're not changing the number of neurons/nodes/output channels
@@ -427,16 +427,26 @@ def compress_convs(model, compressed):
             elif isinstance(l2, nn.Linear):
                 prune_fc(nonzeros, channel_size, l2, follow_conv=True) # TODO fix this please
 
-    print(channels)
+    print("remaining channels: ", channels)
 
     new_model = compressed(channels)
+    
+    #for layer in model.children():
+    #    print(layer)
+
+
+    #print("\n\n\n======================\n\n\n")
+
+    #for layer in new_model.children():
+    #    print(layer)
+
+    #print("\n\n\n=====================\n\n\n")
 
     for original, compressed in zip(expand_model(model, []), expand_model(new_model, [])):
         print("original: ", original)
         print("compressed: ", compressed)
-        print("===============\n\n\n")
-
-        if not isinstance(original, nn.Sequential):
+        print("===\n\n\n\n")
+        if not isinstance(original, nn.Sequential) and not isinstance(original, nn.MaxPool2d):
             compressed.weight.data = original.weight.data
             if original.bias is not None:
                 compressed.bias.data   = original.bias.data
