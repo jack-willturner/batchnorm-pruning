@@ -170,7 +170,7 @@ def save_state(model_name, model_weights, acc):
     torch.save(state, 'saved_models/ckpt'+model_name+'.t7')
 
 def load_best(model_name, model_wts):
-    filename   = 'saved_models/ckpt_' + model_name + '.t7'
+    filename   = 'saved_models/ckpt' + model_name + '.t7'
     checkpoint = torch.load(filename)
 
     best_acc = checkpoint['acc']
@@ -278,7 +278,30 @@ def count_params(model):
         flat = param.view(param.size(0), -1)
         flat = flat.data.cpu().numpy()
         total = total + np.count_nonzero(flat)
+        print(total)
+    print("====================")
     return total
+
+def compute_dims(model):
+    image_dims = []
+
+    input_width  = 28.
+    input_height = 28.
+
+    ls = expand_model(model, []) # this seems like the most reasonable way to iterate
+
+    for l1 in ls:
+        if isinstance(l1, nn.Conv2d):
+            k_w, k_h = l1.kernel_size[0], l1.kernel_size[1]
+            padding_w, padding_h  = l1.padding[0], l1.padding[1]
+            stride = l1.stride[0]
+           
+            input_height = (input_height - k_h + (2 * padding_h) / stride) + 1
+            input_width  = (input_width  - k_w + (2 * padding_w) / stride) + 1
+            
+            image_dims.append(input_height)
+    return image_dims
+
 
 def count_sparse_bn(model, writer, epoch):
     total = 0.
@@ -287,7 +310,6 @@ def count_sparse_bn(model, writer, epoch):
     input_height = 28.
 
     ls = expand_model(model, []) # this seems like the most reasonable way to iterate
-
 
     for l1, l2 in zip(ls, ls[1:]):
         if isinstance(l1, nn.Conv2d) and isinstance(l2, BatchNorm2dEx):
@@ -302,6 +324,7 @@ def count_sparse_bn(model, writer, epoch):
 
             input_height = (input_height - k_h + (2 * padding_h) / stride) + 1
             input_width  = (input_width  - k_w + (2 * padding_w) / stride) + 1
+            
 
             mac_ops = mac_ops_per_kernel * num_nonzero
             total  += mac_ops
@@ -309,6 +332,17 @@ def count_sparse_bn(model, writer, epoch):
 
     writer.add_scalar("MAC ops", total, epoch)
     return total
+
+
+def print_sparse_bn(model):
+    nonzeros = []
+    for layer in expand_model(model, []):
+        if isinstance(layer, BatchNorm2dEx):
+            num_nonzero = np.count_nonzero(layer.weight.data.cpu().numpy())
+            nonzeros.append(num_nonzero)
+            print(layer,"\t\t:\t\t",  num_nonzero)
+    return nonzeros
+
 
 import numpy as np
 
@@ -362,7 +396,7 @@ def prune_conv(indices, layer, follow=False):
     if not follow:
         # prune output channels
         layer.weight.data = torch.from_numpy(layer.weight.data.cpu().numpy()[indices])
-        if layer.bias:
+        if layer.bias is not None:
             layer.bias.data   = torch.from_numpy(layer.bias.data.cpu().numpy()[indices])
     else:
         # prune input channels - so don't touch biases because we're not changing the number of neurons/nodes/output channels
@@ -427,16 +461,26 @@ def compress_convs(model, compressed):
             elif isinstance(l2, nn.Linear):
                 prune_fc(nonzeros, channel_size, l2, follow_conv=True) # TODO fix this please
 
-    print(channels)
+    print("remaining channels: ", channels)
 
     new_model = compressed(channels)
+    
+    #for layer in model.children():
+    #    print(layer)
+
+
+    #print("\n\n\n======================\n\n\n")
+
+    #for layer in new_model.children():
+    #    print(layer)
+
+    #print("\n\n\n=====================\n\n\n")
 
     for original, compressed in zip(expand_model(model, []), expand_model(new_model, [])):
         print("original: ", original)
         print("compressed: ", compressed)
-        print("===============\n\n\n")
-
-        if not isinstance(original, nn.Sequential):
+        print("===\n\n\n\n")
+        if not isinstance(original, nn.Sequential) and not isinstance(original, nn.MaxPool2d):
             compressed.weight.data = original.weight.data
             if original.bias is not None:
                 compressed.bias.data   = original.bias.data
