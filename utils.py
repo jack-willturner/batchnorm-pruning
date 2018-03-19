@@ -52,7 +52,7 @@ def init_params(net):
             if m.bias:
                 init.constant(m.bias, 0)
 
-
+'''
 _, term_width = os.popen('stty size', 'r').read().split()
 term_width = int(term_width)
 
@@ -101,6 +101,7 @@ def progress_bar(current, total, msg=None):
     else:
         sys.stdout.write('\n')
     sys.stdout.flush()
+'''
 
 def format_time(seconds):
     days = int(seconds / 3600/24)
@@ -228,8 +229,8 @@ def train(model, epoch, writer, plot_name,  optimizer, bn_optimizer, trainloader
         writer.add_scalar((plot_name + ": Train/Top1"), acc,  epoch)
 
 
-        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        #progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+        #    % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
 def test(model_name, model, epoch, writer,plot_name, testloader, best_acc):
     use_cuda = torch.cuda.is_available()
@@ -255,8 +256,8 @@ def test(model_name, model, epoch, writer,plot_name, testloader, best_acc):
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
 
-        progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        #progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+        #    % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
     # Save checkpoint.
     acc = 100.*correct/total
@@ -268,6 +269,8 @@ def test(model_name, model, epoch, writer,plot_name, testloader, best_acc):
         print('Saving..')
         save_state(model_name, model, acc)
         best_acc = acc
+    print(best_acc)    
+
     return best_acc
 
 # deep compression
@@ -278,7 +281,30 @@ def count_params(model):
         flat = param.view(param.size(0), -1)
         flat = flat.data.cpu().numpy()
         total = total + np.count_nonzero(flat)
+        print(total)
+    print("====================")
     return total
+
+def compute_dims(model):
+    image_dims = []
+
+    input_width  = 28.
+    input_height = 28.
+
+    ls = expand_model(model, []) # this seems like the most reasonable way to iterate
+
+    for l1 in ls:
+        if isinstance(l1, nn.Conv2d):
+            k_w, k_h = l1.kernel_size[0], l1.kernel_size[1]
+            padding_w, padding_h  = l1.padding[0], l1.padding[1]
+            stride = l1.stride[0]
+           
+            input_height = (input_height - k_h + (2 * padding_h) / stride) + 1
+            input_width  = (input_width  - k_w + (2 * padding_w) / stride) + 1
+            
+            image_dims.append(input_height)
+    return image_dims
+
 
 def count_sparse_bn(model, writer, epoch):
     total = 0.
@@ -287,7 +313,6 @@ def count_sparse_bn(model, writer, epoch):
     input_height = 28.
 
     ls = expand_model(model, []) # this seems like the most reasonable way to iterate
-
 
     for l1, l2 in zip(ls, ls[1:]):
         if isinstance(l1, nn.Conv2d) and isinstance(l2, BatchNorm2dEx):
@@ -302,6 +327,7 @@ def count_sparse_bn(model, writer, epoch):
 
             input_height = (input_height - k_h + (2 * padding_h) / stride) + 1
             input_width  = (input_width  - k_w + (2 * padding_w) / stride) + 1
+            
 
             mac_ops = mac_ops_per_kernel * num_nonzero
             total  += mac_ops
@@ -309,6 +335,17 @@ def count_sparse_bn(model, writer, epoch):
 
     writer.add_scalar("MAC ops", total, epoch)
     return total
+
+
+def print_sparse_bn(model):
+    nonzeros = []
+    for layer in expand_model(model, []):
+        if isinstance(layer, BatchNorm2dEx):
+            num_nonzero = np.count_nonzero(layer.weight.data.cpu().numpy())
+            nonzeros.append(num_nonzero)
+            print(layer,"\t\t:\t\t",  num_nonzero)
+    return nonzeros
+
 
 import numpy as np
 

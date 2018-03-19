@@ -59,5 +59,5 @@ class BatchNormSGD(SGD):
                 x      = p.data.add(-group['lr'],d_p)
                 x      = torch.clamp((torch.abs(x) - ista), min=0.) # second elem is index location
                 p.data = x * torch.sign(x)
-
+                
         return loss
