@@ -12,57 +12,57 @@ class VGG(nn.Module):
     def __init__(self):
         super(VGG, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, 3, stride=1, padding=3)
-        self.bn1   = bn.BatchNorm2dEx(64)
+        self.bnx1  = bn.BatchNorm2dEx(64)
         self.conv2 = nn.Conv2d(64, 64, 3, stride=1, padding=3)
-        self.bn2   = bn.BatchNorm2dEx(64)
+        self.bnx2  = bn.BatchNorm2dEx(64)
         self.pool1 = nn.MaxPool2d(2, stride=2) # TODO check this
 
         self.conv3 = nn.Conv2d(64, 128, 3, stride=1, padding=2)
-        self.bn3   = bn.BatchNorm2dEx(128)
+        self.bnx3  = bn.BatchNorm2dEx(128)
         self.conv4 = nn.Conv2d(128, 128, 3, stride=1, padding=2)
-        self.bn4   = bn.BatchNorm2dEx(128)
+        self.bnx4  = bn.BatchNorm2dEx(128)
         self.pool2 = nn.MaxPool2d(2, stride=2)
 
         self.conv5 = nn.Conv2d(128, 256, 3, stride=1, padding=1)
-        self.bn5   = bn.BatchNorm2dEx(256)
+        self.bnx5  = bn.BatchNorm2dEx(256)
         self.conv6 = nn.Conv2d(256, 256, 3, stride=1, padding=1)
-        self.bn6   = bn.BatchNorm2dEx(256)
+        self.bnx6  = bn.BatchNorm2dEx(256)
         self.pool3 = nn.MaxPool2d(2, stride=2)
 
         self.conv7 = nn.Conv2d(256, 512, 3, stride=1, padding=1)
-        self.bn7   = bn.BatchNorm2dEx(512)
+        self.bnx7  = bn.BatchNorm2dEx(512)
         self.conv8 = nn.Conv2d(512, 512, 3, stride=1, padding=1)
-        self.bn8   = bn.BatchNorm2dEx(512)
+        self.bnx8  = bn.BatchNorm2dEx(512)
         self.pool4 = nn.MaxPool2d(2, stride=2)
 
         self.conv9  = nn.Conv2d(512, 512, 3, stride=1, padding=1)
-        self.bn9    = bn.BatchNorm2dEx(512)
+        self.bnx9   = bn.BatchNorm2dEx(512)
         self.conv10 = nn.Conv2d(512, 512, 3, stride=1, padding=1)
-        self.bn10   = bn.BatchNorm2dEx(512)
+        self.bnx10  = bn.BatchNorm2dEx(512)
         self.pool5  = nn.MaxPool2d(2, stride=2)
 
         self.fc1    = nn.Linear(512, 1028)
         self.fc2    = nn.Linear(1028, 10)
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x), self.conv1.weight))
-        out = F.relu(self.bn2(self.conv2(out), self.conv2.weight))
+        out = F.relu(self.bnx1(self.conv1(x), self.conv1.weight))
+        out = F.relu(self.bnx2(self.conv2(out), self.conv2.weight))
         out = self.pool1(out)
 
-        out = F.relu(self.bn3(self.conv3(out), self.conv3.weight))
-        out = F.relu(self.bn4(self.conv4(out), self.conv4.weight))
+        out = F.relu(self.bnx3(self.conv3(out), self.conv3.weight))
+        out = F.relu(self.bnx4(self.conv4(out), self.conv4.weight))
         out = self.pool2(out)
 
-        out = F.relu(self.bn5(self.conv5(out), self.conv5.weight))
-        out = F.relu(self.bn6(self.conv6(out), self.conv6.weight))
+        out = F.relu(self.bnx5(self.conv5(out), self.conv5.weight))
+        out = F.relu(self.bnx6(self.conv6(out), self.conv6.weight))
         out = self.pool3(out)
 
-        out = F.relu(self.bn7(self.conv7(out), self.conv7.weight))
-        out = F.relu(self.bn8(self.conv8(out), self.conv8.weight))
+        out = F.relu(self.bnx7(self.conv7(out), self.conv7.weight))
+        out = F.relu(self.bnx8(self.conv8(out), self.conv8.weight))
         out = self.pool4(out)
 
-        out = F.relu(self.bn9(self.conv9(out), self.conv9.weight))
-        out = F.relu(self.bn10(self.conv10(out), self.conv10.weight))
+        out = F.relu(self.bnx9(self.conv9(out), self.conv9.weight))
+        out = F.relu(self.bnx10(self.conv10(out), self.conv10.weight))
         out = self.pool5(out)
 
         #  reshape

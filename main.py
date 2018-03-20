@@ -46,8 +46,8 @@ def compute_penalties(model, rho, image_dim=28):
 
         follow_up_cost = 0.
 
-        for i, follow_up_conv in enumerate(tail):
-            follow_up_cost += follow_up_conv.kernel_size[0] * follow_up_conv.kernel_size[1] * follow_up_conv.in_channels + image_dims[i]**2
+        for j, follow_up_conv in enumerate(tail):
+            follow_up_cost += follow_up_conv.kernel_size[0] * follow_up_conv.kernel_size[1] * follow_up_conv.in_channels + image_dims[j+i]**2
 
         ista = ((1 / i_w * i_h) * (k_w * k_h * c_prev + follow_up_cost))
         ista = rho * ista
@@ -56,6 +56,41 @@ def compute_penalties(model, rho, image_dim=28):
         penalties.append(ista)
 
     return penalties
+
+'''
+An alternative implementation where only the direct follow up conv is
+included in the calculation of ISTA penalties.
+'''
+def compute_penalties_(model, rho, image_dim=28):
+    penalties  = []
+    image_dims = compute_dims(model)
+
+    layers = list(filter(lambda l : isinstance(l, nn.Conv2d), expand_model(model, [])))
+
+    for i in range(len(layers)-1):
+        l    = layers[i]
+        tail = layers[i+1:]
+
+        i_w, i_h = image_dim, image_dim
+        k_w, k_h = l.kernel_size[0], l.kernel_size[1]
+        c_prev   = l.in_channels
+        c_next   = l.out_channels
+
+        follow_up_cost = 0.
+
+
+        follow_up_conv = tail[0]
+        follow_up_cost += follow_up_conv.kernel_size[0] * follow_up_conv.kernel_size[1] * follow_up_conv.in_channels + image_dims[i]**2
+
+        ista = ((1 / i_w * i_h) * (k_w * k_h * c_prev + follow_up_cost))
+        ista = rho * ista
+
+        print(ista)
+        penalties.append(ista)
+
+    return penalties
+
+
 
 def scale_gammas(alpha, model, scale_down=True):
     # get pairs of consecutive layers
@@ -89,9 +124,12 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
     best_acc = 0.
     learning_rate = 0.1
 
+    non_bn_params = [p for n, p in model.named_parameters() if 'bnx' not in n]
+    bn_params     = [p for n, p in model.named_parameters() if 'bnx' in n]
+
     # should weight decay be zero?
-    optimizer    = optim.SGD([p for n, p in model.named_parameters() if 'bn' not in n], lr=learning_rate, momentum=0.9, weight_decay=5e-4)
-    bn_optimizer = bnopt.BatchNormSGD([p for n, p in model.named_parameters() if 'bn' in n], lr=learning_rate, ista=ista_penalties, momentum=0.9)
+    optimizer    = optim.SGD([p for n, p in model.named_parameters() if 'bnx' not in n], lr=learning_rate, momentum=0.9, weight_decay=5e-4)
+    bn_optimizer = bnopt.BatchNormSGD([p for n, p in model.named_parameters() if 'bnx' in n], lr=learning_rate, ista=ista_penalties, momentum=0.9)
 
     for epoch in range(1,num_epochs):
         train(model_weights, epoch, writer, "train", optimizer, bn_optimizer, train_loader)
@@ -102,14 +140,21 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
         for name, param in model_weights.named_parameters():
             writer.add_histogram(name, param.clone().cpu().data.numpy(), epoch)
 
-        for param in expand_model(model_weights, []):
-            if isinstance(param, bn.BatchNorm2dEx):
-                print(param.cpu().data.numpy().mean())
-
         #print(spbns)
         #writer.add_histogram("sparsity", spbns, epoch)
-
     return best_acc
+
+
+def finetune(model, writer, epochs):
+    best_acc = 0.
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
+    for epoch in range(1, epochs):
+        train(model, epoch, writer,"finetune", optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
+        best_acc = test(model_name, model, epoch, writer,"finetune", test_loader, best_acc)
+        count_sparse_bn(model, writer, epoch)
+        print_sparse_bn(model)
+
+
 
 parser = argparse.ArgumentParser(description="Rethinking Smaller Norm in Channel Pruning")
 parser.add_argument('--pretrained', action='store_true', help='Please provide path to pretrained model')
@@ -121,8 +166,9 @@ if __name__=='__main__':
     writer = SummaryWriter()
 
     # get the model
-    model = ResNet18()
-    model_name = "ResNet-18"
+    model = VGG()
+    model_name = "VGG-16"
+    compressed_model = VGGCompressed
 
     initial_training_epochs = 200
     finetuning_epochs       = 50
@@ -130,13 +176,14 @@ if __name__=='__main__':
 
     # fixed hyperparams for now - need to add parsing support
     alpha = 1.
-    rho   = 0.000001
+    rho   = 0.00000001
 
     # step one: compute ista penalties
-    ista_penalties = compute_penalties(model, rho)
+    ista_penalties = compute_penalties_(model, rho)
+    print_layer_ista_pair(model, ista_penalties)
 
     # step two: gamma rescaling trick
-    scale_gammas(alpha, model=model, scale_down=True)
+    #scale_gammas(alpha, model=model, scale_down=True)
 
     count_sparse_bn(model, writer, 0)
     print_sparse_bn(model)
@@ -148,18 +195,10 @@ if __name__=='__main__':
     switch_to_follow(model)
 
     # step five: gamma rescaling trick
-    scale_gammas(alpha, model=model, scale_down=False)
+    #scale_gammas(alpha, model=model, scale_down=False)
 
     # step six: finetune
-    num_retraining_epochs=finetuning_epochs
-    best_acc = 0.
-    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
-    for epoch in range(1, num_retraining_epochs):
-        train(model, epoch, writer,"finetune", optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
-        best_acc = test(model_name, model, epoch, writer,"finetune", test_loader, best_acc)
-        count_sparse_bn(model, writer, epoch)
-
-        print_sparse_bn(model)
+    finetune(model, writer, finetuning_epochs)
 
     ##### Remove all unnecessary channels
     model_name = model_name + "Compressed"
@@ -168,18 +207,10 @@ if __name__=='__main__':
     print("Compressing model...")
     sparsify_on_bn(model)
 
-    new_model = compress_convs(model, ResNet18Compressed)
-
+    new_model = compress_convs(model, compressed_model)
 
     # step six: finetune
-    num_retraining_epochs=compress_epochs
-    best_acc = 0.
-    new_optimizer = optim.SGD(new_model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
-    for epoch in range(1, num_retraining_epochs):
-        train(new_model, epoch, writer, "compress_finetune",  new_optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
-        best_acc = test(model_name, new_model, epoch, writer, "compress_finetune", test_loader, best_acc)
-
-
+    finetune(new_model, writer, compress_epochs)
 
     writer.export_scalars_to_json("./all_scalars.json")
     writer.close()

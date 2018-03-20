@@ -150,10 +150,10 @@ def get_data():
     ])
 
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=100, shuffle=True, num_workers=2)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=2)
 
     testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=128, shuffle=False, num_workers=2)
 
     return trainloader, testloader
 
@@ -269,7 +269,7 @@ def test(model_name, model, epoch, writer,plot_name, testloader, best_acc):
         print('Saving..')
         save_state(model_name, model, acc)
         best_acc = acc
-    print(best_acc)    
+    print(best_acc)
 
     return best_acc
 
@@ -298,10 +298,10 @@ def compute_dims(model):
             k_w, k_h = l1.kernel_size[0], l1.kernel_size[1]
             padding_w, padding_h  = l1.padding[0], l1.padding[1]
             stride = l1.stride[0]
-           
+
             input_height = (input_height - k_h + (2 * padding_h) / stride) + 1
             input_width  = (input_width  - k_w + (2 * padding_w) / stride) + 1
-            
+
             image_dims.append(input_height)
     return image_dims
 
@@ -317,17 +317,17 @@ def count_sparse_bn(model, writer, epoch):
     for l1, l2 in zip(ls, ls[1:]):
         if isinstance(l1, nn.Conv2d) and isinstance(l2, BatchNorm2dEx):
             num_nonzero = np.count_nonzero(l2.weight.data.cpu().numpy())
-            
+
             writer.add_scalar(str(l1), num_nonzero, epoch)
             k_w, k_h = l1.kernel_size[0], l1.kernel_size[1]
             padding_w, padding_h  = l1.padding[0], l1.padding[1]
             stride = l1.stride[0]
-           
+
             mac_ops_per_kernel = (input_width + padding_w) * (input_height + padding_h) * k_w * k_h
 
             input_height = (input_height - k_h + (2 * padding_h) / stride) + 1
             input_width  = (input_width  - k_w + (2 * padding_w) / stride) + 1
-            
+
 
             mac_ops = mac_ops_per_kernel * num_nonzero
             total  += mac_ops
@@ -336,12 +336,19 @@ def count_sparse_bn(model, writer, epoch):
     writer.add_scalar("MAC ops", total, epoch)
     return total
 
+def print_layer_ista_pair(model, istas):
+    print("\n\n\n======PENALTY LAYER PAIRS======\n")
+    bn_layers = [l for l in expand_model(model, []) if isinstance(l, BatchNorm2dEx)]
+    for layer, penalty in zip(bn_layers, istas):
+        print(layer, "\t\t:\t\t", penalty)
+    print("\n\n\n")
 
 def print_sparse_bn(model):
     nonzeros = []
+
     for layer in expand_model(model, []):
         if isinstance(layer, BatchNorm2dEx):
-            num_nonzero = np.count_nonzero(layer.weight.data.cpu().numpy())
+            num_nonzero = np.count_nonzero(layer.weight.cpu().data.numpy())
             nonzeros.append(num_nonzero)
             print(layer,"\t\t:\t\t",  num_nonzero)
     return nonzeros
@@ -395,7 +402,7 @@ def argwhere_nonzero(layer, batchnorm=False):
 def prune_conv(indices, layer, follow=False):
     # follow tells us whether we need to prune input channels or output channels
     a,b,c,d = layer.weight.data.cpu().numpy().shape
-    
+
     if not follow:
         # prune output channels
         layer.weight.data = torch.from_numpy(layer.weight.data.cpu().numpy()[indices])
@@ -429,7 +436,7 @@ def compress_convs(model, compressed):
     skip_connection = []
 
     for l1, l2 in zip(ls, ls[1:]):
-        if isinstance(l1, nn.Conv2d): 
+        if isinstance(l1, nn.Conv2d):
 
             nonzeros = argwhere_nonzero(l1.weight)
             nonzeros_altered = True
@@ -451,7 +458,7 @@ def compress_convs(model, compressed):
             # i.e. num of channels in bn is same as num of channels in last conv layer
 
             assert nonzeros_altered, "batch norm layer appeared before a convolutional layer"
-            
+
             l1_channels = l1.num_features
 
             prune_bn(nonzeros, l1)
@@ -467,7 +474,7 @@ def compress_convs(model, compressed):
     print("remaining channels: ", channels)
 
     new_model = compressed(channels)
-    
+
     #for layer in model.children():
     #    print(layer)
 
@@ -490,7 +497,7 @@ def compress_convs(model, compressed):
 
     return new_model
 
-def expand_model(model, layers=[]): 
+def expand_model(model, layers=[]):
     for layer in model.children():
          if len(list(layer.children())) > 0:
              expand_model(layer, layers)
