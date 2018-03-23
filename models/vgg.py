@@ -8,9 +8,9 @@ import torch.nn.functional as F
 
 from .layers import bn
 
-class VGG(nn.Module):
+class VGG16(nn.Module):
     def __init__(self):
-        super(VGG, self).__init__()
+        super(VGG16, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, 3, stride=1, padding=3)
         self.bnx1  = bn.BatchNorm2dEx(64)
         self.conv2 = nn.Conv2d(64, 64, 3, stride=1, padding=3)
@@ -81,9 +81,9 @@ class VGG(nn.Module):
         return out
 
 
-class VGGCompressed(nn.Module):
+class VGG16Compressed(nn.Module):
     def __init__(self, channels):
-        super(VGGCompressed, self).__init__()
+        super(VGG16Compressed, self).__init__()
         self.conv1 = nn.Conv2d(3, channels[0], 3, stride=1, padding=3)
         self.bn1   = nn.BatchNorm2d(channels[0])
         self.conv2 = nn.Conv2d(channels[0], channels[1], 3, stride=1, padding=3)

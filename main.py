@@ -169,7 +169,7 @@ if __name__=='__main__':
     rho   = 0.0000001
 
     # step one: compute ista penalties
-    ista_penalties = compute_penalties_(model, rho)
+    ista_penalties = compute_penalties(model, rho)
     print_layer_ista_pair(model, ista_penalties)
 
     # step two: gamma rescaling trick
