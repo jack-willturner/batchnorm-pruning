@@ -21,6 +21,9 @@ class BatchNormSGD(SGD):
         self.ista = ista
         super(BatchNormSGD, self).__init__(params, lr=lr, momentum=momentum, dampening=dampening, weight_decay=weight_decay, nesterov=nesterov)
 
+    def update_ista(ista):
+        self.ista = ista
+
 
     def step(self, closure=None):
         loss = None
@@ -57,7 +60,7 @@ class BatchNormSGD(SGD):
 
                 # apply group lasso
                 x      = p.data.add(-group['lr'],d_p)
-                x      = torch.clamp((torch.abs(x) - ista), min=0.) # second elem is index location
+                x      = torch.clamp((torch.abs(x) - ista), min=0.) 
                 p.data = x * torch.sign(x)
-                
+
         return loss

@@ -27,22 +27,28 @@ class VGG(nn.Module):
         self.bnx5  = bn.BatchNorm2dEx(256)
         self.conv6 = nn.Conv2d(256, 256, 3, stride=1, padding=1)
         self.bnx6  = bn.BatchNorm2dEx(256)
-        self.pool3 = nn.MaxPool2d(2, stride=2)
-
         self.conv7 = nn.Conv2d(256, 512, 3, stride=1, padding=1)
         self.bnx7  = bn.BatchNorm2dEx(512)
+        self.pool3 = nn.MaxPool2d(2, stride=2)
+
         self.conv8 = nn.Conv2d(512, 512, 3, stride=1, padding=1)
         self.bnx8  = bn.BatchNorm2dEx(512)
-        self.pool4 = nn.MaxPool2d(2, stride=2)
-
         self.conv9  = nn.Conv2d(512, 512, 3, stride=1, padding=1)
         self.bnx9   = bn.BatchNorm2dEx(512)
         self.conv10 = nn.Conv2d(512, 512, 3, stride=1, padding=1)
         self.bnx10  = bn.BatchNorm2dEx(512)
-        self.pool5  = nn.MaxPool2d(2, stride=2)
+        self.pool4 = nn.MaxPool2d(2, stride=2)
 
-        self.fc1    = nn.Linear(512, 1028)
-        self.fc2    = nn.Linear(1028, 10)
+        self.conv11  = nn.Conv2d(512, 512, 3, stride=1, padding=1)
+        self.bnx11   = bn.BatchNorm2dEx(512)
+        self.conv12  = nn.Conv2d(512, 512, 3, stride=1, padding=1)
+        self.bnx12   = bn.BatchNorm2dEx(512)
+        self.conv13  = nn.Conv2d(512, 512, 3, stride=1, padding=1)
+        self.bnx13   = bn.BatchNorm2dEx(512)
+        self.pool5   = nn.MaxPool2d(2, stride=2)
+
+        self.fc1    = nn.Linear(512, 512)
+        self.fc2    = nn.Linear(512, 10)
 
     def forward(self, x):
         out = F.relu(self.bnx1(self.conv1(x), self.conv1.weight))
@@ -55,14 +61,17 @@ class VGG(nn.Module):
 
         out = F.relu(self.bnx5(self.conv5(out), self.conv5.weight))
         out = F.relu(self.bnx6(self.conv6(out), self.conv6.weight))
+        out = F.relu(self.bnx7(self.conv7(out), self.conv7.weight))
         out = self.pool3(out)
 
-        out = F.relu(self.bnx7(self.conv7(out), self.conv7.weight))
         out = F.relu(self.bnx8(self.conv8(out), self.conv8.weight))
-        out = self.pool4(out)
-
         out = F.relu(self.bnx9(self.conv9(out), self.conv9.weight))
         out = F.relu(self.bnx10(self.conv10(out), self.conv10.weight))
+        out = self.pool4(out)
+
+        out = F.relu(self.bnx11(self.conv11(out), self.conv11.weight))
+        out = F.relu(self.bnx12(self.conv12(out), self.conv12.weight))
+        out = F.relu(self.bnx13(self.conv13(out), self.conv13.weight))
         out = self.pool5(out)
 
         #  reshape
@@ -91,21 +100,27 @@ class VGGCompressed(nn.Module):
         self.bn5   = nn.BatchNorm2d(channels[4])
         self.conv6 = nn.Conv2d(channels[4], channels[5], 3, stride=1, padding=1)
         self.bn6   = nn.BatchNorm2d(channels[5])
-        self.pool3 = nn.MaxPool2d(2, stride=2)
-
         self.conv7 = nn.Conv2d(channels[5], channels[6], 3, stride=1, padding=1)
         self.bn7   = nn.BatchNorm2d(channels[6])
+        self.pool3 = nn.MaxPool2d(2, stride=2)
+
         self.conv8 = nn.Conv2d(channels[6], channels[7], 3, stride=1, padding=1)
         self.bn8   = nn.BatchNorm2d(channels[7])
-        self.pool4 = nn.MaxPool2d(2, stride=2)
-
         self.conv9  = nn.Conv2d(channels[7], channels[8], 3, stride=1, padding=1)
         self.bn9    = nn.BatchNorm2d(channels[8])
         self.conv10 = nn.Conv2d(channels[8], channels[9], 3, stride=1, padding=1)
         self.bn10   = nn.BatchNorm2d(channels[9])
+        self.pool4 = nn.MaxPool2d(2, stride=2)
+
+        self.conv11  = nn.Conv2d(channels[9], channels[10], 3, stride=1, padding=1)
+        self.bn11    = nn.BatchNorm2d(channels[10])
+        self.conv12  = nn.Conv2d(channels[10], channels[11], 3, stride=1, padding=1)
+        self.bn12    = nn.BatchNorm2d(channels[11])
+        self.conv13 = nn.Conv2d(channels[11], channels[12], 3, stride=1, padding=1)
+        self.bn13   = nn.BatchNorm2d(channels[12])
         self.pool5  = nn.MaxPool2d(2, stride=2)
 
-        self.fc1    = nn.Linear(channels[9] * 3 * 3, 512)
+        self.fc1    = nn.Linear(channels[12] * 3 * 3, 512)
         self.fc2    = nn.Linear(512, 10)
 
     def forward(self, x):
@@ -119,18 +134,22 @@ class VGGCompressed(nn.Module):
 
         out = F.relu(self.bn5(self.conv5(out)))
         out = F.relu(self.bn6(self.conv6(out)))
+        out = F.relu(self.bn7(self.conv7(out)))
         out = self.pool3(out)
 
-        out = F.relu(self.bn7(self.conv7(out)))
         out = F.relu(self.bn8(self.conv8(out)))
-        out = self.pool4(out)
-
         out = F.relu(self.bn9(self.conv9(out)))
         out = F.relu(self.bn10(self.conv10(out)))
+        out = self.pool4(out)
+
+        out = F.relu(self.bn11(self.conv11(out)))
+        out = F.relu(self.bn12(self.conv12(out)))
+        out = F.relu(self.bn13(self.conv13(out)))
         out = self.pool5(out)
 
         #  reshape
         out = out.view(out.size(0), -1)
+
         out = F.relu(self.fc1(out))
         out = self.fc2(out)
         return out

@@ -27,7 +27,7 @@ from models.layers import bn
 '''
 Equation (2) on page 6
 '''
-def compute_penalties(model, rho, image_dim=28):
+def compute_penalties(model, rho, image_dim=40):
     penalties  = []
     image_dims = compute_dims(model) # calculate output sizes of each convolution so we can count penalties
 
@@ -57,36 +57,26 @@ def compute_penalties(model, rho, image_dim=28):
 
     return penalties
 
+
 '''
 An alternative implementation where only the direct follow up conv is
 included in the calculation of ISTA penalties.
 '''
-def compute_penalties_(model, rho, image_dim=28):
+def compute_penalties_(model, rho, image_dim=40):
     penalties  = []
     image_dims = compute_dims(model)
 
-    layers = list(filter(lambda l : isinstance(l, nn.Conv2d), expand_model(model, [])))
+    layers = expand_model(model, [])
 
-    for i in range(len(layers)-1):
-        l    = layers[i]
-        tail = layers[i+1:]
+    for l1, l2 in zip(layers,layers[1:]):
+        if(isinstance(l1, nn.Conv2d) and isinstance(l2, bn.BatchNorm2dEx)):
+            # get a count of the zero-valued weights in l2
+            # subtract count from follow_up_conv.in_channels
+            c_next = l1.out_channels - num_zeros
 
-        i_w, i_h = image_dim, image_dim
-        k_w, k_h = l.kernel_size[0], l.kernel_size[1]
-        c_prev   = l.in_channels
-        c_next   = l.out_channels
-
-        follow_up_cost = 0.
-
-
-        follow_up_conv = tail[0]
-        follow_up_cost += follow_up_conv.kernel_size[0] * follow_up_conv.kernel_size[1] * follow_up_conv.in_channels + image_dims[i]**2
-
-        ista = ((1 / i_w * i_h) * (k_w * k_h * c_prev + follow_up_cost))
-        ista = rho * ista
-
-        print(ista)
-        penalties.append(ista)
+            for j, follow_up_conv in enumerate(tail):
+                follow_up_cost += follow_up_conv.kernel_size[0] * follow_up_conv.kernel_size[1] * c_next + image_dims[j+i]**2
+                c_next = follow_up_conv.in_channels
 
     return penalties
 
@@ -122,7 +112,7 @@ def switch_to_follow(model):
 def train_model(model_name, model_weights, ista_penalties, num_epochs):
 
     best_acc = 0.
-    learning_rate = 0.1
+    learning_rate = 0.01
 
     non_bn_params = [p for n, p in model.named_parameters() if 'bnx' not in n]
     bn_params     = [p for n, p in model.named_parameters() if 'bnx' in n]
@@ -166,9 +156,9 @@ if __name__=='__main__':
     writer = SummaryWriter()
 
     # get the model
-    model = VGG()
+    model = VGG16()
     model_name = "VGG-16"
-    compressed_model = VGGCompressed
+    compressed_model = VGG16Compressed
 
     initial_training_epochs = 200
     finetuning_epochs       = 50
@@ -176,7 +166,7 @@ if __name__=='__main__':
 
     # fixed hyperparams for now - need to add parsing support
     alpha = 1.
-    rho   = 0.00000001
+    rho   = 0.0000001
 
     # step one: compute ista penalties
     ista_penalties = compute_penalties_(model, rho)

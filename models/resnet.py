@@ -39,8 +39,8 @@ class BasicBlock(nn.Module):
         #    self.shortcut_conv = nn.Conv2d(in_planes, self.expansion
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x), self.conv1.weight))
-        out = self.bn2(self.conv2(out), self.conv2.weight)
+        out = F.relu(self.bnx1(self.conv1(x), self.conv1.weight))
+        out = self.bnx2(self.conv2(out), self.conv2.weight)
 
         out += self.shortcut(x)
         out = F.relu(out)
@@ -129,7 +129,7 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x), self.conv1.weight))
+        out = F.relu(self.bnx1(self.conv1(x), self.conv1.weight))
         out = self.layer1(out)
         out = self.layer2(out)
         out = self.layer3(out)
