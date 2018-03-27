@@ -23,7 +23,7 @@ class BasicBlock(nn.Module):
         self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bnx1  = bn.BatchNorm2dEx(planes)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bnx2  = bn.BatchNorm2dEx(planes)
+        self.bn2   = nn.BatchNorm2d(planes)
 
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
@@ -40,7 +40,7 @@ class BasicBlock(nn.Module):
 
     def forward(self, x):
         out = F.relu(self.bnx1(self.conv1(x), self.conv1.weight))
-        out = self.bnx2(self.conv2(out), self.conv2.weight)
+        out = self.bn2(self.conv2(out))
 
         out += self.shortcut(x)
         out = F.relu(out)

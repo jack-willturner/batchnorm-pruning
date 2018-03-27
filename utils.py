@@ -384,6 +384,10 @@ def sparsify_on_bn(model):
             for z in zeros:
                 l1.weight.data[z] = 0.
 
+def count_zeros(layer):
+    weights = layer.weight.cpu().data.numpy()
+    return len(np.where(weights==0)[0])
+
 
 def argwhere_nonzero(layer, batchnorm=False):
     indices=[]

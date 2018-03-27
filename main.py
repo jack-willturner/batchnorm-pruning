@@ -31,7 +31,7 @@ def compute_penalties(model, rho, image_dim=40):
     penalties  = []
     image_dims = compute_dims(model) # calculate output sizes of each convolution so we can count penalties
 
-    # only considering conv layers with batchnorm
+    # TODO change: this won't work for ResNet since a lot of the convs don't have bnx layers after them
     layers = list(filter(lambda l : isinstance(l, nn.Conv2d), expand_model(model, [])))
 
     # zip xs (tail xs) - need to know kernel size of follow-up layer
@@ -66,18 +66,32 @@ def compute_penalties_(model, rho, image_dim=40):
     penalties  = []
     image_dims = compute_dims(model)
 
+    i = 0
     layers = expand_model(model, [])
+    convs  = list(filter(lambda l : isinstance(l, nn.Conv2d), expand_model(model, [])))
 
     for l1, l2 in zip(layers,layers[1:]):
         if(isinstance(l1, nn.Conv2d) and isinstance(l2, bn.BatchNorm2dEx)):
+            num_zeros = count_zeros(l2)
             # get a count of the zero-valued weights in l2
             # subtract count from follow_up_conv.in_channels
+            i_w, i_h = image_dims[i], image_dims[i]
+            k_w, k_h = l1.kernel_size[0], l1.kernel_size[1]
+            c_prev   = l1.in_channels
             c_next = l1.out_channels - num_zeros
 
-            for j, follow_up_conv in enumerate(tail):
+            follow_up_cost = 0
+
+            for j, follow_up_conv in enumerate(convs[i:]):
                 follow_up_cost += follow_up_conv.kernel_size[0] * follow_up_conv.kernel_size[1] * c_next + image_dims[j+i]**2
                 c_next = follow_up_conv.in_channels
 
+            i = i + 1
+            ista = rho * ista
+            ista = ((1/ i_w * i_h) * (k_w * k_h * c_prev + follow_up_cost))
+            istas.append(ista)
+
+    print(penalties)
     return penalties
 
 
@@ -129,7 +143,7 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
 
         for name, param in model_weights.named_parameters():
             writer.add_histogram(name, param.clone().cpu().data.numpy(), epoch)
-
+        bn_optimizer.update_ista(compute_penalties_(model_weights, 0.0000001))
         #print(spbns)
         #writer.add_histogram("sparsity", spbns, epoch)
     return best_acc
