@@ -49,7 +49,7 @@ def compute_penalties(model, rho, image_dim=40):
         for j, follow_up_conv in enumerate(tail):
             follow_up_cost += follow_up_conv.kernel_size[0] * follow_up_conv.kernel_size[1] * follow_up_conv.in_channels + image_dims[j+i]**2
 
-        ista = ((1 / i_w * i_h) * (k_w * k_h * c_prev + follow_up_cost))
+        ista = ((1 / i_w * i_h) * (k_w * k_h * c_prev)) # + follow_up_cost
         ista = rho * ista
 
         print(ista)
@@ -87,9 +87,10 @@ def compute_penalties_(model, rho, image_dim=40):
                 c_next = follow_up_conv.in_channels
 
             i = i + 1
+
+            ista = ((1/ i_w * i_h) * (k_w * k_h * c_prev)) # + follow_up_cost
             ista = rho * ista
-            ista = ((1/ i_w * i_h) * (k_w * k_h * c_prev + follow_up_cost))
-            istas.append(ista)
+            penalties.append(ista)
 
     print(penalties)
     return penalties
@@ -143,7 +144,8 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
 
         for name, param in model_weights.named_parameters():
             writer.add_histogram(name, param.clone().cpu().data.numpy(), epoch)
-        bn_optimizer.update_ista(compute_penalties_(model_weights, 0.0000001))
+        new_penalties = compute_penalties_(model_weights, rho=0.00000001)
+        bn_optimizer.update_ista(new_penalties)
         #print(spbns)
         #writer.add_histogram("sparsity", spbns, epoch)
     return best_acc
@@ -174,13 +176,15 @@ if __name__=='__main__':
     model_name = "VGG-16"
     compressed_model = VGG16Compressed
 
+    print(compute_dims(model))
+
     initial_training_epochs = 200
     finetuning_epochs       = 50
     compress_epochs         = 10
 
     # fixed hyperparams for now - need to add parsing support
     alpha = 1.
-    rho   = 0.0000001
+    rho   = 0.00000001
 
     # step one: compute ista penalties
     ista_penalties = compute_penalties(model, rho)

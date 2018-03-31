@@ -14,7 +14,6 @@ from torch.autograd import Variable
 
 from .layers import bn
 
-
 class BasicBlock(nn.Module):
     expansion = 1
 
