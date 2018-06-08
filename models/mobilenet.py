@@ -97,11 +97,11 @@ class MobileNetCompressed(nn.Module):
         return out
 
 
-
+'''
 def test():
     net = MobileNet()
     for i, m in enumerate(net.modules()):
         if i == 0:
             print(m)
-
+'''
 #test()

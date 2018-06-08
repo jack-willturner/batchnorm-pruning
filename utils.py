@@ -190,7 +190,7 @@ def train(model, epoch, writer, plot_name,  optimizer, bn_optimizer, trainloader
     if use_cuda:
         model.cuda()
         model = torch.nn.DataParallel(model, device_ids=range(torch.cuda.device_count()))
-
+    
     print('\nEpoch: %d' % epoch)
 
     model.train()
@@ -343,14 +343,14 @@ def count_sparse_bn(model, writer, epoch):
             padding_w, padding_h  = l1.padding[0], l1.padding[1]
             stride = l1.stride[0]
 
-            mac_ops_per_kernel = (input_width + padding_w) * (input_height + padding_h) * k_w * k_h
+        mac_ops_per_kernel = (input_width + padding_w) * (input_height + padding_h) * k_w * k_h
 
-            input_height = (input_height - k_h + (2 * padding_h) / stride) + 1
-            input_width  = (input_width  - k_w + (2 * padding_w) / stride) + 1
+        input_height = (input_height - k_h + (2 * padding_h) / stride) + 1
+        input_width  = (input_width  - k_w + (2 * padding_w) / stride) + 1
 
 
-            mac_ops = mac_ops_per_kernel * num_nonzero
-            total  += mac_ops
+        mac_ops = mac_ops_per_kernel * num_nonzero
+        total  += mac_ops
 
 
     writer.add_scalar("MAC ops", total, epoch)
@@ -373,6 +373,9 @@ def print_sparse_bn(model):
             print(layer,"\t\t:\t\t",  num_nonzero)
     return nonzeros
 
+def get_sparse_bn(layer):
+    num_nonzero = np.count_nonzero(layer.weight.cpu().data.numpy())
+    return num_nonzero
 
 import numpy as np
 

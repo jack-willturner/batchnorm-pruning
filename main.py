@@ -72,23 +72,23 @@ def compute_penalties_(model, rho, image_dim=40):
 
     for l1, l2 in zip(layers,layers[1:]):
         if(isinstance(l1, nn.Conv2d) and isinstance(l2, bn.BatchNorm2dEx)):
-            num_zeros = count_zeros(l2)
+            num_non_zero = get_sparse_bn(l2)
             # get a count of the zero-valued weights in l2
             # subtract count from follow_up_conv.in_channels
             i_w, i_h = image_dims[i], image_dims[i]
             k_w, k_h = l1.kernel_size[0], l1.kernel_size[1]
             c_prev   = l1.in_channels
-            c_next = l1.out_channels - num_zeros
+            c_next   = num_non_zero
 
             follow_up_cost = 0
 
-            for j, follow_up_conv in enumerate(convs[i:]):
-                follow_up_cost += follow_up_conv.kernel_size[0] * follow_up_conv.kernel_size[1] * c_next + image_dims[j+i]**2
-                c_next = follow_up_conv.in_channels
+            #for j, follow_up_conv in enumerate(convs[i:]):
+            #    follow_up_cost += follow_up_conv.kernel_size[0] * follow_up_conv.kernel_size[1] * c_next + image_dims[j+i]**2
+            #    c_next = follow_up_conv.in_channels
 
             i = i + 1
 
-            ista = ((1/ i_w * i_h) * (k_w * k_h * c_prev)) # + follow_up_cost
+            ista = ((1/ i_w * i_h) * (k_w * k_h * c_next)) # + follow_up_cost
             ista = rho * ista
             penalties.append(ista)
 
@@ -146,6 +146,7 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
         new_penalties = compute_penalties_(model_weights, rho=0.00000001)
         bn_optimizer.update_ista(new_penalties)
         #print(spbns)
+        print_sparse_bn(model)
         #writer.add_histogram("sparsity", spbns, epoch)
     return best_acc
 
@@ -186,7 +187,8 @@ if __name__=='__main__':
     rho   = 0.00000001
 
     # step one: compute ista penalties
-    ista_penalties = compute_penalties(model, rho)
+    ista_penalties = compute_penalties_(model, rho)
+    
     print_layer_ista_pair(model, ista_penalties)
 
     # step two: gamma rescaling trick
