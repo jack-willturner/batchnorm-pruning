@@ -9,20 +9,32 @@ import torch.nn.functional as F
 
 from torch.autograd import Variable
 
-from .layers import bn
 
 class Block(nn.Module):
     '''Depthwise conv + Pointwise conv'''
     def __init__(self, in_planes, out_planes, stride=1):
         super(Block, self).__init__()
         self.conv1 = nn.Conv2d(in_planes, in_planes, kernel_size=3, stride=stride, padding=1, groups=in_planes, bias=False)
-        self.bn1   = bn.BatchNorm2dEx(in_planes)
+        self.bn1 = nn.BatchNorm2d(in_planes)
         self.conv2 = nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=1, padding=0, bias=False)
-        self.bn2   = bn.BatchNorm2dEx(out_planes)
+        self.bn2 = nn.BatchNorm2d(out_planes)
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x), self.conv1.weight))
-        out = F.relu(self.bn2(self.conv2(out), self.conv2.weight))
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = F.relu(self.bn2(self.conv2(out)))
+        return out
+
+class BlockCompressed(nn.Module):
+    def __init__(self, in_planes, out_planes, channels, stride=1):
+        super(Block, self).__init__()
+        self.conv1 = nn.Conv2d(in_planes, in_planes, kernel_size=3, stride=stride, padding=1, groups=in_planes, bias=False)
+        self.bn1 = nn.BatchNorm2d(in_planes)
+        self.conv2 = nn.Conv2d(in_planes, channels, kernel_size=1, stride=1, padding=0, bias=False)
+        self.bn2 = nn.BatchNorm2d(channels)
+
+    def forward(self, x):
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = F.relu(self.bn2(self.conv2(out)))
         return out
 
 
@@ -33,7 +45,7 @@ class MobileNet(nn.Module):
     def __init__(self, num_classes=10):
         super(MobileNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn1 = bn.BatchNorm2dEx(32)
+        self.bn1 = nn.BatchNorm2d(32)
         self.layers = self._make_layers(in_planes=32)
         self.linear = nn.Linear(1024, num_classes)
 
@@ -47,9 +59,49 @@ class MobileNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x), self.conv1.weight))
+        out = F.relu(self.bn1(self.conv1(x)))
         out = self.layers(out)
         out = F.avg_pool2d(out, 2)
         out = out.view(out.size(0), -1)
         out = self.linear(out)
         return out
+
+
+class MobileNetCompressed(nn.Module):
+    # (128,2) means conv planes=128, conv stride=2, by default conv stride=1
+    def __init__(self, c, num_classes=10):
+        super(MobileNetCompressed, self).__init__()
+
+        self.cfg = [c[0], (c[1],2), c[2], (c[3],2), c[4], (c[5],2), c[6], c[7], c[8], c[9], c[10], (c[11],2), c[12]]
+
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.layers = self._make_layers(in_planes=32)
+        self.linear = nn.Linear(c[12], num_classes)
+
+    def _make_layers(self, in_planes):
+        layers = []
+        for x in self.cfg:
+            out_planes = x if isinstance(x, int) else x[0]
+            stride = 1 if isinstance(x, int) else x[1]
+            layers.append(Block(in_planes, out_planes, stride))
+            in_planes = out_planes
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = self.layers(out)
+        out = F.avg_pool2d(out, 2)
+        out = out.view(out.size(0), -1)
+        out = self.linear(out)
+        return out
+
+
+
+def test():
+    net = MobileNet()
+    for i, m in enumerate(net.modules()):
+        if i == 0:
+            print(m)
+
+#test()

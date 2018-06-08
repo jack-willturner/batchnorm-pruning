@@ -93,7 +93,7 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
         train(model_weights, epoch, writer, "train", optimizer, bn_optimizer, train_loader)
         best_acc = test(model_name, model_weights, epoch, writer, "train", test_loader, best_acc)
         count_sparse_bn(model_weights, writer, epoch)
-        
+
         for name, param in model_weights.named_parameters():
             writer.add_histogram(name, param.clone().cpu().data.numpy(), epoch)
 
@@ -119,7 +119,7 @@ if __name__=='__main__':
     ista_penalties = compute_penalties(model, rho)
 
     # step two: gamma rescaling trick
-    scale_gammas(alpha, model=model, scale_down=True)
+    #scale_gammas(alpha, model=model, scale_down=True)
 
     count_sparse_bn(model, writer, 0)
 
@@ -130,7 +130,7 @@ if __name__=='__main__':
     switch_to_follow(model)
 
     # step five: gamma rescaling trick
-    scale_gammas(alpha, model=model, scale_down=False)
+    #scale_gammas(alpha, model=model, scale_down=False)
 
     # step six: finetune
     num_retraining_epochs=5
@@ -159,7 +159,7 @@ if __name__=='__main__':
     for epoch in range(1, num_retraining_epochs):
         train(new_model, epoch, writer, "compress_finetune",  new_optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
         best_acc = test(model_name, new_model, epoch, writer, "compress_finetune", test_loader, best_acc)
-        
+
 
     writer.export_scalars_to_json("./all_scalars.json")
     writer.close()
