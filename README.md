@@ -1,5 +1,10 @@
 # [Rethinking the Smaller-Norm-Less-Informative Assumption in Channel Pruning of Convolution Layers](https://arxiv.org/abs/1802.00124)
-A PyTorch implementation of [this paper](https://arxiv.org/abs/1802.00124).  
+A PyTorch implementation of [this paper](https://arxiv.org/abs/1802.00124).
+
+To do list:
+- [ ] Extend to MobileNet and VGG
+- [ ] Fix MAC op calculation for strided convolution
+- [ ] Include training scheme from paper
 
 ## Usage
 I haven't included any code for transfer learning/ using pretrained models, so everything here must be done from scratch.
@@ -16,10 +21,12 @@ python main.py
 ## Results on CIFAR-10
 | Model                | Size  | MAC ops | Inf. time | Accuracy |
 |----------------------|-------|---------|-----------|----------|
-| LeNet                | 250kB |         |           |  71.49%  |
-| LeNet-Compressed     | 200kB |         |           |  72.67%  |
 | ResNet-18            |       |         |           |          |
 | ResNet-18-Compressed |       |         |           |          |
+| VGG-16               |       |         |           |          |
+| VGG-16-Compressed    |       |         |           |          |
+| MobileNet            |       |         |           |          |
+| MobileNet-Compressed |       |         |           |          |
 
 ## Citing
 Now accepted to ICLR 2018, will update bibtex soon:
