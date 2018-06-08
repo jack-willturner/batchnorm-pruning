@@ -127,7 +127,7 @@ def switch_to_follow(model):
 def train_model(model_name, model_weights, ista_penalties, num_epochs):
 
     best_acc = 0.
-    learning_rate = 0.01
+    learning_rate = 0.0001
 
     non_bn_params = [p for n, p in model.named_parameters() if 'bnx' not in n]
     bn_params     = [p for n, p in model.named_parameters() if 'bnx' in n]
@@ -140,10 +140,6 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
         train(model_weights, epoch, writer, "train", optimizer, bn_optimizer, train_loader)
         best_acc = test(model_name, model_weights, epoch, writer, "train", test_loader, best_acc)
         count_sparse_bn(model_weights, writer, epoch)
-<<<<<<< HEAD
-=======
-        spbns = print_sparse_bn(model_weights)
->>>>>>> 16c941954aa07894ead55838a6ba3296c2c785e6
 
         for name, param in model_weights.named_parameters():
             writer.add_histogram(name, param.clone().cpu().data.numpy(), epoch)
@@ -156,7 +152,7 @@ def train_model(model_name, model_weights, ista_penalties, num_epochs):
 
 def finetune(model, writer, epochs):
     best_acc = 0.
-    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
+    optimizer = optim.SGD(model.parameters(), lr=0.0000001, momentum=0.9, weight_decay=5e-4)
     for epoch in range(1, epochs):
         train(model, epoch, writer,"finetune", optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
         best_acc = test(model_name, model, epoch, writer,"finetune", test_loader, best_acc)
@@ -175,14 +171,14 @@ if __name__=='__main__':
     writer = SummaryWriter()
 
     # get the model
-    model = VGG16()
-    model_name = "VGG-16"
-    compressed_model = VGG16Compressed
+    model = ResNet18()
+    model_name = "ResNet-18"
+    compressed_model = ResNet18Compressed
 
     print(compute_dims(model))
 
-    initial_training_epochs = 200
-    finetuning_epochs       = 50
+    initial_training_epochs = 30
+    finetuning_epochs       = 10
     compress_epochs         = 10
 
     # fixed hyperparams for now - need to add parsing support
@@ -194,7 +190,7 @@ if __name__=='__main__':
     print_layer_ista_pair(model, ista_penalties)
 
     # step two: gamma rescaling trick
-    #scale_gammas(alpha, model=model, scale_down=True)
+    scale_gammas(alpha, model=model, scale_down=True)
 
     count_sparse_bn(model, writer, 0)
     print_sparse_bn(model)
@@ -206,7 +202,7 @@ if __name__=='__main__':
     switch_to_follow(model)
 
     # step five: gamma rescaling trick
-    #scale_gammas(alpha, model=model, scale_down=False)
+    scale_gammas(alpha, model=model, scale_down=False)
 
     # step six: finetune
     finetune(model, writer, finetuning_epochs)
@@ -221,17 +217,7 @@ if __name__=='__main__':
     new_model = compress_convs(model, compressed_model)
 
     # step six: finetune
-<<<<<<< HEAD
-    num_retraining_epochs=2
-    best_acc = 0.
-    new_optimizer = optim.SGD(new_model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
-    for epoch in range(1, num_retraining_epochs):
-        train(new_model, epoch, writer, "compress_finetune",  new_optimizer, bn_optimizer=None, trainloader=train_loader, finetune=True)
-        best_acc = test(model_name, new_model, epoch, writer, "compress_finetune", test_loader, best_acc)
-
-=======
     finetune(new_model, writer, compress_epochs)
->>>>>>> 16c941954aa07894ead55838a6ba3296c2c785e6
 
     writer.export_scalars_to_json("./all_scalars.json")
     writer.close()

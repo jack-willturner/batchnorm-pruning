@@ -293,18 +293,38 @@ def compute_dims(model):
 
     ls = expand_model(model, []) # this seems like the most reasonable way to iterate
 
+    num_input_channels = 3 # keep track of the number of channels so that if we see a decrease, we know we have hit a shortcut and can ignore it
+
     for l1 in ls:
         if isinstance(l1, nn.Conv2d):
-            k_w, k_h = l1.kernel_size[0], l1.kernel_size[1]
-            padding_w, padding_h  = l1.padding[0], l1.padding[1]
-            stride = l1.stride[0]
+            if l1.in_channels >= num_input_channels:
+                k_w, k_h = l1.kernel_size[0], l1.kernel_size[1]
+                padding_h, padding_w  = l1.padding[0], l1.padding[1]
+                stride = l1.stride[0]
 
-            input_height = (input_height - k_h + (2 * padding_h) / stride) + 1
-            input_width  = (input_width  - k_w + (2 * padding_w) / stride) + 1
+                input_height = ((input_height + 2 * padding_h - l1.dilation[0] * (k_h - 1) - 1) / stride) + 1
+                input_width  = ((input_width  + 2 * padding_w - l1.dilation[1] * (k_w - 1) - 1) / stride) + 1
+                assert(input_height == input_width)
 
-            image_dims.append(input_height)
+                input_height = int(input_height)
+                input_width  = int(input_width)
+
+                num_input_channels = l1.out_channels
+                image_dims.append(input_height)
+            else:
+                image_dims.append(input_height)
+
+        elif isinstance(l1, nn.MaxPool2d):
+            k_w, k_h = l1.kernel_size, l1.kernel_size
+            padding_w, padding_h  = l1.padding, l1.padding
+            stride = l1.stride
+
+            input_height = ((input_height + 2 * padding_h - l1.dilation * (k_h - 1) - 1) / stride) + 1
+            input_width  = ((input_width  + 2 * padding_w - l1.dilation * (k_w - 1) - 1) / stride) + 1
+            assert(input_height == input_width)
+            image_dims.append(int(input_height))
+
     return image_dims
-
 
 def count_sparse_bn(model, writer, epoch):
     total = 0.
