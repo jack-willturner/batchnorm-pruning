@@ -52,7 +52,7 @@ def init_params(net):
             if m.bias:
                 init.constant(m.bias, 0)
 
-
+'''
 _, term_width = os.popen('stty size', 'r').read().split()
 term_width = int(term_width)
 
@@ -101,6 +101,7 @@ def progress_bar(current, total, msg=None):
     else:
         sys.stdout.write('\n')
     sys.stdout.flush()
+'''
 
 def format_time(seconds):
     days = int(seconds / 3600/24)
@@ -137,7 +138,7 @@ def format_time(seconds):
 def get_data():
     print('==> Preparing data..')
     transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
+        transforms.RandomCrop(32, padding=8),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
@@ -149,10 +150,10 @@ def get_data():
     ])
 
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=100, shuffle=True, num_workers=2)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=2)
 
     testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=128, shuffle=False, num_workers=2)
 
     return trainloader, testloader
 
@@ -170,7 +171,7 @@ def save_state(model_name, model_weights, acc):
     torch.save(state, 'saved_models/ckpt'+model_name+'.t7')
 
 def load_best(model_name, model_wts):
-    filename   = 'saved_models/ckpt_' + model_name + '.t7'
+    filename   = 'saved_models/ckpt' + model_name + '.t7'
     checkpoint = torch.load(filename)
 
     best_acc = checkpoint['acc']
@@ -228,8 +229,8 @@ def train(model, epoch, writer, plot_name,  optimizer, bn_optimizer, trainloader
         writer.add_scalar((plot_name + ": Train/Top1"), acc,  epoch)
 
 
-        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        #progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+        #    % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
 def test(model_name, model, epoch, writer,plot_name, testloader, best_acc):
     use_cuda = torch.cuda.is_available()
@@ -255,8 +256,8 @@ def test(model_name, model, epoch, writer,plot_name, testloader, best_acc):
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
 
-        progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        #progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+        #    % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
     # Save checkpoint.
     acc = 100.*correct/total
@@ -268,6 +269,8 @@ def test(model_name, model, epoch, writer,plot_name, testloader, best_acc):
         print('Saving..')
         save_state(model_name, model, acc)
         best_acc = acc
+    print(best_acc)
+
     return best_acc
 
 # deep compression
@@ -278,7 +281,30 @@ def count_params(model):
         flat = param.view(param.size(0), -1)
         flat = flat.data.cpu().numpy()
         total = total + np.count_nonzero(flat)
+        print(total)
+    print("====================")
     return total
+
+def compute_dims(model):
+    image_dims = []
+
+    input_width  = 40.
+    input_height = 40.
+
+    ls = expand_model(model, []) # this seems like the most reasonable way to iterate
+
+    for l1 in ls:
+        if isinstance(l1, nn.Conv2d):
+            k_w, k_h = l1.kernel_size[0], l1.kernel_size[1]
+            padding_w, padding_h  = l1.padding[0], l1.padding[1]
+            stride = l1.stride[0]
+
+            input_height = (input_height - k_h + (2 * padding_h) / stride) + 1
+            input_width  = (input_width  - k_w + (2 * padding_w) / stride) + 1
+
+            image_dims.append(input_height)
+    return image_dims
+
 
 def count_sparse_bn(model, writer, epoch):
     total = 0.
@@ -288,20 +314,20 @@ def count_sparse_bn(model, writer, epoch):
 
     ls = expand_model(model, []) # this seems like the most reasonable way to iterate
 
-
     for l1, l2 in zip(ls, ls[1:]):
         if isinstance(l1, nn.Conv2d) and isinstance(l2, BatchNorm2dEx):
             num_nonzero = np.count_nonzero(l2.weight.data.cpu().numpy())
-            
+
             writer.add_scalar(str(l1), num_nonzero, epoch)
             k_w, k_h = l1.kernel_size[0], l1.kernel_size[1]
             padding_w, padding_h  = l1.padding[0], l1.padding[1]
             stride = l1.stride[0]
-           
+
             mac_ops_per_kernel = (input_width + padding_w) * (input_height + padding_h) * k_w * k_h
 
             input_height = (input_height - k_h + (2 * padding_h) / stride) + 1
             input_width  = (input_width  - k_w + (2 * padding_w) / stride) + 1
+
 
             mac_ops = mac_ops_per_kernel * num_nonzero
             total  += mac_ops
@@ -309,6 +335,24 @@ def count_sparse_bn(model, writer, epoch):
 
     writer.add_scalar("MAC ops", total, epoch)
     return total
+
+def print_layer_ista_pair(model, istas):
+    print("\n\n\n======PENALTY LAYER PAIRS======\n")
+    bn_layers = [l for l in expand_model(model, []) if isinstance(l, BatchNorm2dEx)]
+    for layer, penalty in zip(bn_layers, istas):
+        print(layer, "\t\t:\t\t", penalty)
+    print("\n\n\n")
+
+def print_sparse_bn(model):
+    nonzeros = []
+
+    for layer in expand_model(model, []):
+        if isinstance(layer, BatchNorm2dEx):
+            num_nonzero = np.count_nonzero(layer.weight.cpu().data.numpy())
+            nonzeros.append(num_nonzero)
+            print(layer,"\t\t:\t\t",  num_nonzero)
+    return nonzeros
+
 
 import numpy as np
 
@@ -340,6 +384,10 @@ def sparsify_on_bn(model):
             for z in zeros:
                 l1.weight.data[z] = 0.
 
+def count_zeros(layer):
+    weights = layer.weight.cpu().data.numpy()
+    return len(np.where(weights==0)[0])
+
 
 def argwhere_nonzero(layer, batchnorm=False):
     indices=[]
@@ -358,11 +406,11 @@ def argwhere_nonzero(layer, batchnorm=False):
 def prune_conv(indices, layer, follow=False):
     # follow tells us whether we need to prune input channels or output channels
     a,b,c,d = layer.weight.data.cpu().numpy().shape
-    
+
     if not follow:
         # prune output channels
         layer.weight.data = torch.from_numpy(layer.weight.data.cpu().numpy()[indices])
-        if layer.bias:
+        if layer.bias is not None:
             layer.bias.data   = torch.from_numpy(layer.bias.data.cpu().numpy()[indices])
     else:
         # prune input channels - so don't touch biases because we're not changing the number of neurons/nodes/output channels
@@ -392,7 +440,7 @@ def compress_convs(model, compressed):
     skip_connection = []
 
     for l1, l2 in zip(ls, ls[1:]):
-        if isinstance(l1, nn.Conv2d): 
+        if isinstance(l1, nn.Conv2d):
 
             nonzeros = argwhere_nonzero(l1.weight)
             nonzeros_altered = True
@@ -414,7 +462,7 @@ def compress_convs(model, compressed):
             # i.e. num of channels in bn is same as num of channels in last conv layer
 
             assert nonzeros_altered, "batch norm layer appeared before a convolutional layer"
-            
+
             l1_channels = l1.num_features
 
             prune_bn(nonzeros, l1)
@@ -427,23 +475,33 @@ def compress_convs(model, compressed):
             elif isinstance(l2, nn.Linear):
                 prune_fc(nonzeros, channel_size, l2, follow_conv=True) # TODO fix this please
 
-    print(channels)
+    print("remaining channels: ", channels)
 
     new_model = compressed(channels)
+
+    #for layer in model.children():
+    #    print(layer)
+
+
+    #print("\n\n\n======================\n\n\n")
+
+    #for layer in new_model.children():
+    #    print(layer)
+
+    #print("\n\n\n=====================\n\n\n")
 
     for original, compressed in zip(expand_model(model, []), expand_model(new_model, [])):
         print("original: ", original)
         print("compressed: ", compressed)
-        print("===============\n\n\n")
-
-        if not isinstance(original, nn.Sequential):
+        print("===\n\n\n\n")
+        if not isinstance(original, nn.Sequential) and not isinstance(original, nn.MaxPool2d):
             compressed.weight.data = original.weight.data
             if original.bias is not None:
                 compressed.bias.data   = original.bias.data
 
     return new_model
 
-def expand_model(model, layers=[]): 
+def expand_model(model, layers=[]):
     for layer in model.children():
          if len(list(layer.children())) > 0:
              expand_model(layer, layers)
