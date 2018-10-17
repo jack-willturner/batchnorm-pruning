@@ -1,5 +1,8 @@
 # [Rethinking the Smaller-Norm-Less-Informative Assumption in Channel Pruning of Convolution Layers](https://arxiv.org/abs/1802.00124)
-A PyTorch implementation of [this paper](https://arxiv.org/abs/1802.00124).
+
+Tensorflow implementation from original author [here](https://github.com/bobye/batchnorm_prune).
+
+A PyTorch implementation of [this paper](https://arxiv.org/abs/1802.00124). 
 
 To do list:
 - [ ] Extend to MobileNet and VGG
