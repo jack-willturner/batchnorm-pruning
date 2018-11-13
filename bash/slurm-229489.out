@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "train_resnet.py", line 10, in <module>
+    from utils  import *
+  File "/mnt/cdtds_cluster_home/s1788120/batchnorm-pruning/utils.py", line 49, in <module>
+    class Crop(namedtuple('Crop', ('h', 'w'))):
+NameError: name 'namedtuple' is not defined
