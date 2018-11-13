@@ -14,6 +14,7 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 
+from collections import namedtuple
 from models.layers.bn import BatchNorm2dEx
 
 import torchvision
@@ -22,6 +23,22 @@ import torchvision.transforms as transforms
 from torch.autograd import Variable
 
 criterion = nn.CrossEntropyLoss()
+
+class AverageMeter(object):
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
 
 #####################
 ## data preprocessing

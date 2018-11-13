@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 
+import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 import torch.utils.model_zoo as model_zoo
 from tensorboardX import SummaryWriter
@@ -30,8 +31,11 @@ print(args)
 os.environ["CUDA_VISIBLE_DEVICES"] = args.GPU
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+if torch.cuda.is_available():
+    print('CUDA AVAILABLE')
+
 model = ResNet18()
-if torch.cuda.device_count > 1:
+if torch.cuda.device_count() > 1:
   print('Using multiple GPUs')
   model = nn.DataParallel(model)
 
@@ -40,12 +44,14 @@ model.to(device)
 train_set_raw = torchvision.datasets.CIFAR10(root='./data', train=True, download=True)
 test_set_raw  = torchvision.datasets.CIFAR10(root='./data', train=False, download=True)
 
-t = Timer()
 train_set = list(zip(transpose(normalise(pad(train_set_raw.train_data, 4))), train_set_raw.train_labels))
 test_set  = list(zip(transpose(normalise(test_set_raw.test_data)), test_set_raw.test_labels))
 
+trainloader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=False)
+valloader   = torch.utils.data.DataLoader(test_set,  batch_size=args.batch_size, shuffle=True, num_workers=args.workers, pin_memory=False)
+
 error_history = []
-epoch_step = json.loads(args.epoch_step)
+
 
 def train():
     batch_time = AverageMeter()
