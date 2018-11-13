@@ -1,28 +1,30 @@
 ''' https://arxiv.org/pdf/1802.00124v1.pdf '''
-from __future__ import print_function
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
-
 import torchvision
 import torchvision.transforms as transforms
-
-from tensorboardX import SummaryWriter, FileWriter
-
 import os
 import argparse
-
-from utils import *
-from torch.autograd import Variable
-
 import sgd as bnopt
 
+from utils import *
 from models import *
-
 from models.layers import bn
+from torch.autograd import Variable
+from tensorboardX import SummaryWriter, FileWriter
+
+
+parser = argparse.ArgumentParser(description='Insert useful description here')
+parser.add_argument('--model',          default='ResNet18', help='Options: ResNet18')
+parser.add_argument('--batch_size',     default=128)
+parser.add_argument('--output_file',    default='benchmarking_results.h5', help='Where do you want the results to be saved to?')
+args = parser.parse_args()
+
+models = { 'ResNet-18': (ResNet18(), ResNet18Compressed()) }
 
 '''
 Equation (2) on page 6
@@ -188,7 +190,7 @@ if __name__=='__main__':
 
     # step one: compute ista penalties
     ista_penalties = compute_penalties_(model, rho)
-    
+
     print_layer_ista_pair(model, ista_penalties)
 
     # step two: gamma rescaling trick
