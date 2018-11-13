@@ -23,6 +23,84 @@ from torch.autograd import Variable
 
 criterion = nn.CrossEntropyLoss()
 
+#####################
+## data preprocessing
+#####################
+
+cifar10_mean = (0.4914, 0.4822, 0.4465) # equals np.mean(train_set.train_data, axis=(0,1,2))/255
+cifar10_std = (0.2471, 0.2435, 0.2616) # equals np.std(train_set.train_data, axis=(0,1,2))/255
+
+def normalise(x, mean=cifar10_mean, std=cifar10_std):
+    x, mean, std = [np.array(a, np.float32) for a in (x, mean, std)]
+    x -= mean*255
+    x *= 1.0/(255*std)
+    return x
+
+def pad(x, border=4):
+    return np.pad(x, [(0, 0), (border, border), (border, border), (0, 0)], mode='reflect')
+
+def transpose(x, source='NHWC', target='NCHW'):
+    return x.transpose([source.index(d) for d in target])
+
+#####################
+## data augmentation
+#####################
+
+class Crop(namedtuple('Crop', ('h', 'w'))):
+    def __call__(self, x, x0, y0):
+        return x[:,y0:y0+self.h,x0:x0+self.w]
+
+    def options(self, x_shape):
+        C, H, W = x_shape
+        return {'x0': range(W+1-self.w), 'y0': range(H+1-self.h)}
+
+    def output_shape(self, x_shape):
+        C, H, W = x_shape
+        return (C, self.h, self.w)
+
+class FlipLR(namedtuple('FlipLR', ())):
+    def __call__(self, x, choice):
+        return x[:, :, ::-1].copy() if choice else x
+
+    def options(self, x_shape):
+        return {'choice': [True, False]}
+
+class Cutout(namedtuple('Cutout', ('h', 'w'))):
+    def __call__(self, x, x0, y0):
+        x = x.copy()
+        x[:,y0:y0+self.h,x0:x0+self.w].fill(0.0)
+        return x
+
+    def options(self, x_shape):
+        C, H, W = x_shape
+        return {'x0': range(W+1-self.w), 'y0': range(H+1-self.h)}
+
+
+class Transform():
+    def __init__(self, dataset, transforms):
+        self.dataset, self.transforms = dataset, transforms
+        self.choices = None
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, index):
+        data, labels = self.dataset[index]
+        for choices, f in zip(self.choices, self.transforms):
+            args = {k: v[index] for (k,v) in choices.items()}
+            data = f(data, **args)
+        return data, labels
+
+    def set_random_choices(self):
+        self.choices = []
+        x_shape = self.dataset[0][0].shape
+        N = len(self)
+        for t in self.transforms:
+            options = t.options(x_shape)
+            x_shape = t.output_shape(x_shape) if hasattr(t, 'output_shape') else x_shape
+            self.choices.append({k:np.random.choice(v, size=N) for (k,v) in options.items()})
+
+
 def get_mean_and_std(dataset):
     '''Compute the mean and std value of dataset.'''
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True, num_workers=2)
@@ -51,89 +129,6 @@ def init_params(net):
             init.normal(m.weight, std=1e-3)
             if m.bias:
                 init.constant(m.bias, 0)
-
-'''
-_, term_width = os.popen('stty size', 'r').read().split()
-term_width = int(term_width)
-
-TOTAL_BAR_LENGTH = 65.
-last_time = time.time()
-begin_time = last_time
-def progress_bar(current, total, msg=None):
-    global last_time, begin_time
-    if current == 0:
-        begin_time = time.time()  # Reset for new bar.
-
-    cur_len = int(TOTAL_BAR_LENGTH*current/total)
-    rest_len = int(TOTAL_BAR_LENGTH - cur_len) - 1
-
-    sys.stdout.write(' [')
-    for i in range(cur_len):
-        sys.stdout.write('=')
-    sys.stdout.write('>')
-    for i in range(rest_len):
-        sys.stdout.write('.')
-    sys.stdout.write(']')
-
-    cur_time = time.time()
-    step_time = cur_time - last_time
-    last_time = cur_time
-    tot_time = cur_time - begin_time
-
-    L = []
-    L.append('  Step: %s' % format_time(step_time))
-    L.append(' | Tot: %s' % format_time(tot_time))
-    if msg:
-        L.append(' | ' + msg)
-
-    msg = ''.join(L)
-    sys.stdout.write(msg)
-    for i in range(term_width-int(TOTAL_BAR_LENGTH)-len(msg)-3):
-        sys.stdout.write(' ')
-
-    # Go back to the center of the bar.
-    for i in range(term_width-int(TOTAL_BAR_LENGTH/2)+2):
-        sys.stdout.write('\b')
-    sys.stdout.write(' %d/%d ' % (current+1, total))
-
-    if current < total-1:
-        sys.stdout.write('\r')
-    else:
-        sys.stdout.write('\n')
-    sys.stdout.flush()
-'''
-
-def format_time(seconds):
-    days = int(seconds / 3600/24)
-    seconds = seconds - days*3600*24
-    hours = int(seconds / 3600)
-    seconds = seconds - hours*3600
-    minutes = int(seconds / 60)
-    seconds = seconds - minutes*60
-    secondsf = int(seconds)
-    seconds = seconds - secondsf
-    millis = int(seconds*1000)
-
-    f = ''
-    i = 1
-    if days > 0:
-        f += str(days) + 'D'
-        i += 1
-    if hours > 0 and i <= 2:
-        f += str(hours) + 'h'
-        i += 1
-    if minutes > 0 and i <= 2:
-        f += str(minutes) + 'm'
-        i += 1
-    if secondsf > 0 and i <= 2:
-        f += str(secondsf) + 's'
-        i += 1
-    if millis > 0 and i <= 2:
-        f += str(millis) + 'ms'
-        i += 1
-    if f == '':
-        f = '0ms'
-    return f
 
 def get_data():
     print('==> Preparing data..')
