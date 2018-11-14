@@ -1,0 +1,45 @@
+Tue Nov 13 20:15:57 2018       
++-----------------------------------------------------------------------------+
+| NVIDIA-SMI 390.77                 Driver Version: 390.77                    |
+|-------------------------------+----------------------+----------------------+
+| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+|===============================+======================+======================|
+|   0  Tesla K40m          Off  | 00000000:04:00.0 Off |                    0 |
+| N/A   27C    P8    20W / 235W |      0MiB / 11441MiB |      0%      Default |
++-------------------------------+----------------------+----------------------+
+|   1  Tesla K40m          Off  | 00000000:82:00.0 Off |                    0 |
+| N/A   24C    P8    20W / 235W |      0MiB / 11441MiB |      0%      Default |
++-------------------------------+----------------------+----------------------+
+                                                                               
++-----------------------------------------------------------------------------+
+| Processes:                                                       GPU Memory |
+|  GPU       PID   Type   Process name                             Usage      |
+|=============================================================================|
+|  No running processes found                                                 |
++-----------------------------------------------------------------------------+
+Waking up Bertie...
+Bertie is going to help us train a ResNet on CIFAR-10...
+Namespace(GPU='0,1', base_file='bbb', batch_size=256, learning_rate=0.1, no_epochs=30, print_freq=51, save_file='resnet', workers=0)
+CUDA AVAILABLE
+Using multiple GPUs
+Files already downloaded and verified
+Files already downloaded and verified
+Files already downloaded and verified
+Files already downloaded and verified
+Epoch 1:
+Learning rate is 0.05714285714285715
+Traceback (most recent call last):
+  File "train_resnet.py", line 239, in <module>
+    train()
+  File "train_resnet.py", line 111, in train
+    for i, (input, target) in enumerate(trainloader):
+  File "/home/s1788120/miniconda/envs/bertie/lib/python3.7/site-packages/torch/utils/data/dataloader.py", line 314, in __next__
+    batch = self.collate_fn([self.dataset[i] for i in indices])
+  File "/home/s1788120/miniconda/envs/bertie/lib/python3.7/site-packages/torch/utils/data/dataloader.py", line 314, in <listcomp>
+    batch = self.collate_fn([self.dataset[i] for i in indices])
+  File "/home/s1788120/miniconda/envs/bertie/lib/python3.7/site-packages/torchvision-0.2.1-py3.7.egg/torchvision/datasets/cifar.py", line 121, in __getitem__
+  File "/home/s1788120/miniconda/envs/bertie/lib/python3.7/site-packages/torchvision-0.2.1-py3.7.egg/torchvision/transforms/transforms.py", line 49, in __call__
+  File "/mnt/cdtds_cluster_home/s1788120/batchnorm-pruning/cutout.py", line 23, in __call__
+    h = img.size(1)
+TypeError: 'tuple' object is not callable

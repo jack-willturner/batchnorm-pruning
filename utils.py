@@ -24,6 +24,8 @@ from torch.autograd import Variable
 
 criterion = nn.CrossEntropyLoss()
 
+### All things Elliot
+
 class AverageMeter(object):
     def __init__(self):
         self.reset()
@@ -39,6 +41,24 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
+
+def get_error(output, target, topk=(1,)):
+    maxk = max(topk)
+    batch_size = target.size(0)
+    _, pred = output.topk(maxk, 1, True, True)
+    pred = pred.t()
+    correct = pred.eq(target.view(1, -1).expand_as(pred))
+
+    res = []
+    for k in topk:
+        correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
+        res.append(100.0 - correct_k.mul_(100.0 / batch_size))
+
+    return res
+
+def save_checkpoint(state, filename='checkpoint.pth.tar'):
+    torch.save(state, filename)
 
 #####################
 ## data preprocessing
@@ -82,6 +102,7 @@ class FlipLR(namedtuple('FlipLR', ())):
     def options(self, x_shape):
         return {'choice': [True, False]}
 
+'''
 class Cutout(namedtuple('Cutout', ('h', 'w'))):
     def __call__(self, x, x0, y0):
         x = x.copy()
@@ -91,7 +112,7 @@ class Cutout(namedtuple('Cutout', ('h', 'w'))):
     def options(self, x_shape):
         C, H, W = x_shape
         return {'x0': range(W+1-self.w), 'y0': range(H+1-self.h)}
-
+'''
 
 class Transform():
     def __init__(self, dataset, transforms):

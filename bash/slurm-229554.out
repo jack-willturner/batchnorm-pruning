@@ -1,0 +1,37 @@
+Tue Nov 13 22:02:42 2018       
++-----------------------------------------------------------------------------+
+| NVIDIA-SMI 390.77                 Driver Version: 390.77                    |
+|-------------------------------+----------------------+----------------------+
+| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+|===============================+======================+======================|
+|   0  Tesla K40m          Off  | 00000000:04:00.0 Off |                    0 |
+| N/A   25C    P8    20W / 235W |      0MiB / 11441MiB |      0%      Default |
++-------------------------------+----------------------+----------------------+
+|   1  Tesla K40m          Off  | 00000000:82:00.0 Off |                    0 |
+| N/A   22C    P8    19W / 235W |      0MiB / 11441MiB |      0%      Default |
++-------------------------------+----------------------+----------------------+
+                                                                               
++-----------------------------------------------------------------------------+
+| Processes:                                                       GPU Memory |
+|  GPU       PID   Type   Process name                             Usage      |
+|=============================================================================|
+|  No running processes found                                                 |
++-----------------------------------------------------------------------------+
+Waking up Bertie...
+Bertie is going to help us train a ResNet on CIFAR-10...
+Namespace(GPU='0,1', base_file='bbb', batch_size=256, learning_rate=0.1, no_epochs=30, print_freq=51, save_file='resnet', workers=0)
+CUDA AVAILABLE
+Using multiple GPUs
+Files already downloaded and verified
+Files already downloaded and verified
+Files already downloaded and verified
+Files already downloaded and verified
+Traceback (most recent call last):
+  File "train_resnet.py", line 240, in <module>
+    adjust_opt(optimizer, epoch)
+  File "train_resnet.py", line 226, in adjust_opt
+    lr = np.interp(epoch, knots, vals)
+  File "/home/s1788120/miniconda/envs/bertie/lib/python3.7/site-packages/numpy/lib/function_base.py", line 1308, in interp
+    return interp_func(x, xp, fp, left, right)
+ValueError: fp and xp are not of the same length.
